@@ -39,15 +39,6 @@ A single-file, zero-dependency web application for resizing, converting, and AI-
 - **Batch processing**: Select multiple files to process all with the same settings. Results download as a .zip archive (JSZip loaded on demand)
 - **Before/After comparison**: Draggable divider overlay to compare original vs. processed output
 - **EXIF metadata**: Parses and displays camera info (make, model, exposure, ISO, focal length, GPS) for JPEGs. Option to strip metadata on export
-- **Edit tools** (history-tracked with undo/redo up to 30 steps):
-  - Crop with rule-of-thirds overlay, aspect ratio constraints, and real-time dimension display
-  - Rotate (90° CW/CCW, 180°, free angle with canvas expansion)
-  - Flip (horizontal/vertical)
-  - Adjustments: brightness, contrast, saturation, sharpness, hue, temperature — processed in a Web Worker for large images
-  - Filters: grayscale, sepia, invert, vintage, warm, cool, high contrast
-- **AI Background Removal**: U2-Net (u2netp) ONNX model, 320x320 input with ImageNet normalization, outputs alpha mask scaled to original resolution
-- **Face Enhancement**: Skin-tone detection (RGB heuristic) → bilateral filter on skin regions → sharpen + contrast boost
-- **Image Denoising**: Full-image bilateral filter with pre-computed spatial weights, configurable strength
 - **Keyboard shortcuts**: Ctrl+S (download), Ctrl+O (open), Ctrl+Enter (process), Escape (cancel)
 - **PWA support**: Service worker caches the page and ONNX Runtime assets for offline use
 - **Paste from clipboard**: Ctrl+V to paste an image directly
@@ -82,11 +73,9 @@ index.html
 │   ├── Sharpening                    Lines 1770-1790 Unsharp mask (3x3 kernel)
 │   ├── Format Encoders               Lines 1792-2131 BMP, GIF (LZW), TIFF, ICO, SVG
 │   ├── Vector Tracing                Lines 2133-2330 Median-cut, marching squares, RDP simplification
-│   ├── Edit Tools                    Lines 2332-2816 History, crop, rotate, flip, adjustments, filters
 │   ├── Before/After Compare          Lines 2818-2911 Canvas-based split view with draggable divider
 │   ├── Batch Processing              Lines 2913-3056 Multi-file processing + JSZip download
 │   ├── EXIF Parser                   Lines 3058-3133 Binary TIFF/EXIF tag reader
-│   ├── AI Tools                      Lines 3135-3421 Background removal (U2-Net), face enhance, denoise
 │   ├── Utilities                     Lines 3435-3493 Download, canvasToBlob, fmtBytes, toast, status
 │   └── Service Worker                Lines 3495-3522 PWA offline cache registration
 ```
@@ -102,7 +91,6 @@ All application state is a single `const S = {...}` object (line 460). Key field
 | `selectedFmt`, `selectedScale`, `selectedModel` | User selections |
 | `ortSession` | Real-ESRGAN ONNX InferenceSession (main thread) |
 | `swinirWorker`, `swinirSession` | SwinIR worker handle and loaded flag |
-| `editCanvas`, `editCtx`, `history[]`, `historyIdx` | Non-destructive edit state |
 | `processing`, `cancelRequested` | Processing lock and cancellation signal |
 | `_activeInferenceWorker`, `_cancelTileReject` | Cancel infrastructure for worker mode |
 
