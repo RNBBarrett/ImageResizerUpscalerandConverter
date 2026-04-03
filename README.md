@@ -1,4 +1,4 @@
-# Dick's Image Resizer, Converter and Upscaler
+# A Single Page Image Resizer, Converter and Upscaler
 
 A single-file, zero-dependency web application for resizing, converting, and AI-upscaling images — entirely in the browser. No server, no uploads, no accounts. Drop an image and go.
 
