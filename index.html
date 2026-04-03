@@ -1,0 +1,3529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Single Page Image Resizer, Converter and Upscaler</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0b0b14; --bg2: #13131f; --card: #1a1a2a; --elevated: #222236;
+  --input: #282840; --border: #2e2e48; --accent: #6d5cff; --accent2: #8878ff;
+  --glow: rgba(109,92,255,.25); --teal: #2dd4a8; --red: #ff5c5c; --orange: #ffb050;
+  --t1: #eaeaf2; --t2: #9494ae; --t3: #60607a; --radius: 14px; --sm: 8px;
+}
+body { background: var(--bg); color: var(--t1); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; min-height: 100vh; }
+a { color: var(--accent2); }
+.app { max-width: 960px; margin: 0 auto; padding: 24px 20px 60px; }
+
+/* Header */
+.header { display: flex; align-items: center; gap: 10px; margin-bottom: 28px; }
+.header svg { width: 32px; height: 32px; }
+.header h1 { font-size: 22px; font-weight: 700; background: linear-gradient(135deg, var(--accent), var(--teal)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+.header .badge { font-size: 10px; background: var(--accent); color: #fff; padding: 2px 7px; border-radius: 20px; font-weight: 600; }
+
+/* Upload Zone */
+.upload-zone {
+  border: 2px dashed var(--border); border-radius: var(--radius); padding: 52px 24px;
+  text-align: center; cursor: pointer; transition: .2s; background: var(--bg2);
+}
+.upload-zone:hover, .upload-zone.dragover { border-color: var(--accent); background: rgba(109,92,255,.04); }
+.upload-zone h2 { font-size: 18px; margin-bottom: 6px; font-weight: 600; }
+.upload-zone p { color: var(--t2); font-size: 13px; }
+.upload-zone .formats { color: var(--t3); font-size: 11px; margin-top: 10px; }
+.upload-zone input { display: none; }
+
+/* Compact upload bar (after image loaded) */
+.upload-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; padding: 10px 16px; background: var(--bg2); border-radius: var(--sm); border: 1px solid var(--border); }
+.upload-bar .filename { flex: 1; font-size: 13px; color: var(--t2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.upload-bar button { background: var(--elevated); border: 1px solid var(--border); color: var(--t1); padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; }
+.upload-bar button:hover { background: var(--input); }
+
+/* Workspace */
+.workspace { display: none; }
+.workspace.visible { display: block; }
+
+/* Preview */
+.previews { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 20px; }
+.preview-box { background: var(--card); border-radius: var(--radius); padding: 14px; display: flex; flex-direction: column; align-items: center; min-height: 180px; }
+.preview-box .label { font-size: 11px; font-weight: 600; color: var(--t3); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 10px; width: 100%; }
+.preview-box .img-wrap { position: relative; flex: 1; display: flex; align-items: center; justify-content: center; width: 100%; overflow: hidden; border-radius: var(--sm); background: repeating-conic-gradient(#1a1a2a 0% 25%, #222236 0% 50%) 0 0 / 16px 16px; }
+.preview-box img { max-width: 100%; max-height: 260px; object-fit: contain; display: block; }
+.preview-box .info { display: flex; gap: 12px; margin-top: 10px; width: 100%; }
+.preview-box .info span { font-size: 11px; color: var(--t2); background: var(--bg2); padding: 3px 8px; border-radius: 4px; }
+.preview-box .placeholder { color: var(--t3); font-size: 13px; }
+
+/* Tabs */
+.tabs { display: flex; gap: 4px; background: var(--bg2); padding: 4px; border-radius: var(--radius); margin-bottom: 20px; }
+.tab { flex: 1; padding: 10px 8px; border: none; background: transparent; color: var(--t2); font-size: 13px; font-weight: 600; cursor: pointer; border-radius: 10px; transition: .2s; }
+.tab:hover { color: var(--t1); }
+.tab.active { background: var(--accent); color: #fff; }
+
+/* Panels */
+.panel { display: none; padding: 20px; background: var(--card); border-radius: var(--radius); margin-bottom: 16px; }
+.panel.active { display: block; }
+.panel h3 { font-size: 14px; font-weight: 600; margin-bottom: 14px; }
+.field { margin-bottom: 14px; }
+.field label { display: block; font-size: 12px; color: var(--t2); margin-bottom: 5px; font-weight: 500; }
+.row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+input[type="number"], input[type="text"], select {
+  background: var(--input); border: 1px solid var(--border); color: var(--t1); padding: 8px 12px;
+  border-radius: var(--sm); font-size: 13px; width: 100%; outline: none; transition: .15s;
+}
+input[type="number"]:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--glow); }
+input[type="number"] { width: 110px; }
+input[type="range"] { width: 100%; accent-color: var(--accent); }
+input[type="color"] { width: 40px; height: 34px; border: 1px solid var(--border); border-radius: 6px; background: var(--input); cursor: pointer; padding: 2px; }
+.link-btn { background: none; border: 1px solid var(--border); color: var(--t2); width: 34px; height: 34px; border-radius: 6px; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; transition: .15s; flex-shrink: 0; }
+.link-btn.linked { color: var(--accent); border-color: var(--accent); }
+.link-btn:hover { background: var(--elevated); }
+
+/* Presets */
+.presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.preset { padding: 5px 10px; font-size: 11px; border: 1px solid var(--border); background: var(--bg2); color: var(--t2); border-radius: 6px; cursor: pointer; transition: .15s; }
+.preset:hover { border-color: var(--accent); color: var(--t1); }
+
+/* Format grid */
+.fmt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 8px; }
+.fmt-opt { padding: 10px 8px; text-align: center; border: 2px solid var(--border); border-radius: var(--sm); cursor: pointer; transition: .15s; font-size: 13px; font-weight: 600; }
+.fmt-opt:hover { border-color: var(--t3); }
+.fmt-opt.selected { border-color: var(--accent); background: rgba(109,92,255,.08); color: var(--accent); }
+.fmt-opt .sub { font-size: 10px; font-weight: 400; color: var(--t3); display: block; }
+
+/* Scale options */
+.scale-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.scale-opt { flex: 1; padding: 16px; text-align: center; border: 2px solid var(--border); border-radius: var(--sm); cursor: pointer; transition: .15s; }
+.scale-opt:hover { border-color: var(--t3); }
+.scale-opt.selected { border-color: var(--accent); background: rgba(109,92,255,.08); }
+.scale-opt .big { font-size: 24px; font-weight: 700; color: var(--accent); }
+.scale-opt .sub { font-size: 11px; color: var(--t2); margin-top: 2px; }
+.scale-opt .ram { font-size: 10px; color: var(--t3); margin-top: 2px; }
+.scale-opt.disabled { opacity: 0.35; cursor: not-allowed; border-color: var(--border); }
+.scale-opt.disabled:hover { border-color: var(--border); }
+.scale-opt.disabled .ram { color: var(--red); }
+
+/* AI status */
+.ai-status { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: var(--sm); font-size: 12px; margin-top: 12px; }
+.ai-status.ready { background: rgba(45,212,168,.08); color: var(--teal); }
+.ai-status.loading { background: rgba(109,92,255,.08); color: var(--accent2); }
+.ai-status.error { background: rgba(255,92,92,.08); color: var(--red); }
+.ai-status.idle { background: var(--bg2); color: var(--t2); }
+.ai-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.ai-status.ready .ai-dot { background: var(--teal); }
+.ai-status.loading .ai-dot { background: var(--accent); animation: pulse 1s infinite; }
+.ai-status.error .ai-dot { background: var(--red); }
+.ai-status.idle .ai-dot { background: var(--t3); }
+
+/* Buttons */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 11px 24px; border: none; border-radius: var(--sm); font-size: 14px; font-weight: 600; cursor: pointer; transition: .2s; width: 100%; }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover:not(:disabled) { background: var(--accent2); box-shadow: 0 4px 20px var(--glow); }
+.btn-success { background: var(--teal); color: #0b0b14; }
+.btn-success:hover:not(:disabled) { filter: brightness(1.1); }
+.btn-cancel { background: var(--red); color: #fff; }
+.btn-cancel:hover:not(:disabled) { filter: brightness(1.15); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.actions { display: flex; gap: 10px; }
+.actions .btn { flex: 1; }
+
+/* Progress */
+.progress-wrap { width: 100%; height: 6px; background: var(--bg2); border-radius: 3px; overflow: hidden; margin-top: 8px; display: none; }
+.progress-wrap.visible { display: block; }
+.progress-bar { height: 100%; background: linear-gradient(90deg, var(--accent), var(--teal)); border-radius: 3px; width: 0%; transition: width .3s; }
+.progress-bar.indeterminate { width: 100%; animation: indeterminate 1.5s infinite; background: linear-gradient(90deg, transparent, var(--accent), transparent); background-size: 50% 100%; }
+
+/* Spinner */
+.spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; animation: spin .6s linear infinite; display: none; }
+.btn.loading .spinner { display: block; }
+.btn.loading .btn-text { opacity: .7; }
+
+/* Toast */
+.toasts { position: fixed; top: 20px; right: 20px; z-index: 1000; display: flex; flex-direction: column; gap: 8px; }
+.toast { padding: 12px 18px; border-radius: var(--sm); font-size: 13px; font-weight: 500; animation: slideIn .3s; backdrop-filter: blur(12px); }
+.toast.success { background: rgba(45,212,168,.15); border: 1px solid rgba(45,212,168,.3); color: var(--teal); }
+.toast.error { background: rgba(255,92,92,.15); border: 1px solid rgba(255,92,92,.3); color: var(--red); }
+.toast.info { background: rgba(109,92,255,.15); border: 1px solid rgba(109,92,255,.3); color: var(--accent2); }
+.toast.warning { background: rgba(255,176,80,.15); border: 1px solid rgba(255,176,80,.3); color: var(--orange); }
+
+/* Quality display */
+.quality-val { font-size: 13px; color: var(--accent); font-weight: 600; min-width: 35px; text-align: right; }
+.note { font-size: 11px; color: var(--t3); margin-top: 6px; }
+
+/* Responsive */
+@media (max-width: 640px) {
+  .previews { grid-template-columns: 1fr; }
+  .preview-box img { max-height: 180px; }
+  .actions { flex-direction: column; }
+  .row { flex-direction: column; align-items: stretch; }
+  input[type="number"] { width: 100%; }
+}
+
+/* Animations */
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .4; } }
+@keyframes slideIn { from { transform: translateX(100px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes indeterminate { 0% { background-position: -100% 0; } 100% { background-position: 200% 0; } }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+/* Edit panel */
+.edit-bar { display: flex; gap: 6px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
+.ebar-btn { background: var(--elevated); border: 1px solid var(--border); color: var(--t2); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; display: inline-flex; align-items: center; gap: 4px; transition: .15s; }
+.ebar-btn:hover:not(:disabled) { background: var(--input); color: var(--t1); }
+.ebar-btn:disabled { opacity: .3; cursor: not-allowed; }
+.ebar-spacer { flex: 1; }
+.ebar-label { font-size: 11px; color: var(--t3); }
+.edit-section { margin-bottom: 18px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+.edit-section:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+.edit-section h4 { font-size: 13px; font-weight: 600; margin-bottom: 10px; color: var(--t1); }
+.crop-presets { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.crop-preset { padding: 4px 10px; font-size: 11px; border: 1px solid var(--border); background: var(--bg2); color: var(--t2); border-radius: 6px; cursor: pointer; transition: .15s; }
+.crop-preset:hover, .crop-preset.active { border-color: var(--accent); color: var(--accent); }
+.crop-canvas { position: absolute; cursor: crosshair; z-index: 2; display: none; }
+.tool-btns { display: flex; flex-wrap: wrap; gap: 8px; }
+.tool-btn { padding: 7px 14px; font-size: 12px; font-weight: 500; border: 1px solid var(--border); background: var(--bg2); color: var(--t2); border-radius: 6px; cursor: pointer; transition: .15s; }
+.tool-btn:hover { border-color: var(--accent); color: var(--t1); background: var(--elevated); }
+.rotate-free { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.rotate-free input[type="range"] { flex: 1; }
+.deg-val { font-size: 12px; color: var(--accent); font-weight: 600; min-width: 40px; text-align: right; }
+.adj-grid { display: grid; gap: 10px; }
+.adj-row { display: flex; align-items: center; gap: 10px; }
+.adj-row label { font-size: 12px; color: var(--t2); min-width: 80px; }
+.adj-row input[type="range"] { flex: 1; }
+.adj-val { font-size: 12px; color: var(--accent); font-weight: 600; min-width: 32px; text-align: right; }
+.filter-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 8px; }
+.filter-opt { padding: 10px 8px; text-align: center; border: 2px solid var(--border); border-radius: var(--sm); cursor: pointer; transition: .15s; font-size: 12px; font-weight: 500; }
+.filter-opt:hover { border-color: var(--t3); }
+.filter-opt.applied { border-color: var(--teal); background: rgba(45,212,168,.08); color: var(--teal); }
+
+/* Before/After comparison */
+.compare-toggle { padding: 3px 8px; font-size: 10px; font-weight: 600; background: var(--elevated); border: 1px solid var(--border); color: var(--t2); border-radius: 4px; cursor: pointer; transition: .15s; }
+.compare-toggle:hover { border-color: var(--accent); color: var(--t1); }
+.compare-toggle.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.compare-divider { position: absolute; top: 0; bottom: 0; width: 3px; background: var(--accent); cursor: ew-resize; z-index: 3; display: none; }
+.compare-handle { position: absolute; top: 50%; left: -8px; width: 19px; height: 28px; background: var(--accent); border-radius: 9px; transform: translateY(-50%); }
+
+/* Batch */
+.batch-panel { background: var(--card); border-radius: var(--radius); padding: 14px; margin-bottom: 16px; display: none; }
+.batch-panel.visible { display: block; }
+.batch-panel h3 { font-size: 14px; font-weight: 600; margin-bottom: 10px; display: flex; align-items: center; gap: 10px; }
+.batch-list { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; max-height: 150px; overflow-y: auto; }
+.batch-thumb { width: 56px; height: 56px; object-fit: cover; border-radius: 6px; border: 2px solid var(--border); }
+.batch-thumb.done { border-color: var(--teal); }
+.batch-thumb.error { border-color: var(--red); }
+.batch-thumb.processing { border-color: var(--accent); animation: pulse 1s infinite; }
+.batch-info { font-size: 12px; color: var(--t2); font-weight: 400; }
+
+/* EXIF */
+.exif-section { margin-top: 14px; background: var(--card); border-radius: var(--radius); padding: 0 14px; }
+.exif-section[open] { padding-bottom: 14px; }
+.exif-section summary { font-size: 12px; font-weight: 600; color: var(--t2); cursor: pointer; padding: 10px 0; }
+.exif-grid { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 11px; padding: 4px 0; }
+.exif-grid dt { color: var(--t3); font-weight: 500; }
+.exif-grid dd { color: var(--t1); margin: 0; }
+
+/* Keyboard shortcuts */
+.shortcuts-help { margin-top: 20px; font-size: 11px; color: var(--t3); }
+.shortcuts-help summary { cursor: pointer; font-weight: 500; }
+.shortcuts-grid { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; padding: 8px 0; }
+.shortcuts-grid kbd { background: var(--elevated); border: 1px solid var(--border); padding: 1px 5px; border-radius: 3px; font-family: monospace; font-size: 10px; }
+
+.workspace.visible { animation: fadeIn .3s; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/dist/ort.webgpu.min.js"></script>
+</head>
+<body>
+<div class="app">
+  <!-- Header -->
+  <div class="header">
+    <svg viewBox="0 0 32 32" fill="none"><rect width="32" height="32" rx="8" fill="url(#g)"/><path d="M7 22V10a2 2 0 012-2h14a2 2 0 012 2v12a2 2 0 01-2 2H9a2 2 0 01-2-2z" stroke="#fff" stroke-width="1.5"/><path d="M12 16l-3 5h14l-4-6-3 4z" fill="#fff" opacity=".9"/><circle cx="20" cy="12" r="2" fill="#fff"/><path d="M16 4l1.5 3h-3L16 4z" fill="#2dd4a8"/><path d="M26 11l3 1.5-3 1.5" stroke="#2dd4a8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 11l-3 1.5 3 1.5" stroke="#6d5cff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><defs><linearGradient id="g" x1="0" y1="0" x2="32" y2="32"><stop stop-color="#6d5cff"/><stop offset="1" stop-color="#2dd4a8"/></linearGradient></defs></svg>
+    <h1>Dick's Image Resizer, Converter and Upscaler</h1>
+    <span class="badge">AI</span>
+  </div>
+
+  <!-- Upload Zone -->
+  <div class="upload-zone" id="uploadZone">
+    <h2>Drop an image here</h2>
+    <p>or click to browse &middot; Ctrl+V to paste</p>
+    <div class="formats">PNG &bull; JPEG &bull; WebP &bull; AVIF &bull; BMP &bull; GIF &bull; SVG &bull; ICO</div>
+    <input type="file" id="fileInput" accept="image/*" multiple>
+  </div>
+
+  <!-- Workspace -->
+  <div class="workspace" id="workspace">
+    <!-- Upload bar -->
+    <div class="upload-bar">
+      <span class="filename" id="fileName">image.png</span>
+      <button id="changeBtn">Change Image</button>
+    </div>
+
+    <!-- Batch Panel -->
+    <div class="batch-panel" id="batchPanel">
+      <h3>Batch Processing <span class="batch-info" id="batchInfo"></span></h3>
+      <div class="batch-list" id="batchList"></div>
+      <div class="actions" style="max-width:400px">
+        <button class="btn btn-primary" id="batchProcessBtn"><span class="btn-text">Process All</span></button>
+        <button class="btn btn-success" id="batchDownloadBtn" disabled><span class="btn-text">Download All (.zip)</span></button>
+      </div>
+      <div class="progress-wrap" id="batchProgress"><div class="progress-bar" id="batchProgressBar"></div></div>
+    </div>
+
+    <!-- Previews -->
+    <div class="previews">
+      <div class="preview-box">
+        <div class="label">Original</div>
+        <div class="img-wrap"><img id="origImg" alt="Original"></div>
+        <div class="info"><span id="origDims">-</span><span id="origSize">-</span><span id="origFmt">-</span></div>
+      </div>
+      <div class="preview-box">
+        <div class="label" style="display:flex;align-items:center;justify-content:space-between">Output <button class="compare-toggle" id="compareBtn" style="display:none" title="Before/After comparison">Compare</button></div>
+        <div class="img-wrap" id="outputWrap"><span class="placeholder" id="outputPlaceholder">Process an image to see output</span><img id="outImg" alt="Output" style="display:none"><canvas id="compareCanvas" style="display:none;position:absolute;top:0;left:0;z-index:2"></canvas><div id="compareDivider" class="compare-divider"><div class="compare-handle"></div></div></div>
+        <div class="info"><span id="outDims">-</span><span id="outSize">-</span><span id="outFmt">-</span></div>
+      </div>
+    </div>
+
+    <!-- EXIF Metadata -->
+    <details class="exif-section" id="exifSection" style="display:none">
+      <summary>Image Metadata (EXIF)</summary>
+      <dl class="exif-grid" id="exifGrid"></dl>
+      <label style="font-size:11px;color:var(--t2);display:flex;align-items:center;gap:6px;margin-top:6px;cursor:pointer">
+        <input type="checkbox" id="stripExif"> Strip metadata on export
+      </label>
+    </details>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab active" data-tab="resize">Resize</button>
+      <button class="tab" data-tab="convert">Convert</button>
+      <button class="tab" data-tab="upscale">AI Upscale</button>
+    </div>
+
+    <!-- Resize Panel -->
+    <div class="panel active" id="panel-resize">
+      <h3>Resize Image</h3>
+      <div class="field">
+        <label>Dimensions (px)</label>
+        <div class="row">
+          <input type="number" id="resW" placeholder="Width" min="1" max="16384">
+          <button class="link-btn linked" id="lockAR" title="Lock aspect ratio">&infin;</button>
+          <input type="number" id="resH" placeholder="Height" min="1" max="16384">
+        </div>
+      </div>
+      <div class="field">
+        <label>Scale (%)</label>
+        <div class="row">
+          <input type="number" id="resPct" value="100" min="1" max="1000" style="width:100px">
+          <span style="font-size:12px;color:var(--t3)">%</span>
+        </div>
+      </div>
+      <div class="field">
+        <label>Presets</label>
+        <div class="presets" id="presets"></div>
+      </div>
+    </div>
+
+    <!-- Convert Panel -->
+    <div class="panel" id="panel-convert">
+      <h3>Convert Format</h3>
+      <div class="field">
+        <label>Output Format</label>
+        <div class="fmt-grid" id="fmtGrid"></div>
+      </div>
+      <div class="field" id="qualityField" style="display:none">
+        <label>Quality: <span class="quality-val" id="qualityVal">92</span>%</label>
+        <input type="range" id="qualitySlider" min="1" max="100" value="92">
+      </div>
+      <div class="field" id="bgField" style="display:none">
+        <label>Background Color (replaces transparency)</label>
+        <div class="row">
+          <input type="color" id="bgColor" value="#ffffff">
+          <span style="font-size:12px;color:var(--t3)">Used when converting transparent images to JPEG/BMP</span>
+        </div>
+      </div>
+      <div id="vectorField" style="display:none">
+        <div class="field">
+          <label>SVG Mode</label>
+          <div class="scale-grid" style="grid-template-columns: 1fr 1fr;">
+            <div class="scale-opt selected" id="svgModeWrap" data-svgmode="wrap">
+              <div class="big" style="font-size:16px">Wrapped</div>
+              <div class="sub">Raster in SVG</div>
+            </div>
+            <div class="scale-opt" id="svgModeTrace" data-svgmode="trace">
+              <div class="big" style="font-size:16px">Traced</div>
+              <div class="sub">True vector paths</div>
+            </div>
+          </div>
+        </div>
+        <div id="traceOpts" style="display:none">
+          <div class="field">
+            <label>Colors: <span id="traceColorsVal">12</span></label>
+            <input type="range" id="traceColors" min="2" max="64" value="12">
+          </div>
+          <div class="field">
+            <label>Detail: <span id="traceDetailVal">Medium</span></label>
+            <input type="range" id="traceDetail" min="1" max="5" value="3">
+          </div>
+          <p class="note" style="margin-bottom:10px">Best for logos, icons, and illustrations. Photos produce a stylized/posterized look.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Upscale Panel -->
+    <div class="panel" id="panel-upscale">
+      <h3>AI Upscale</h3>
+      <p class="note" style="margin-bottom:14px">Commercial-quality super-resolution running entirely in your browser via ONNX Runtime Web with WebGPU/WASM and tile-based processing for images up to 4K.</p>
+      <div class="field">
+        <label>AI Model</label>
+        <div class="scale-grid" style="grid-template-columns: 1fr 1fr;" id="modelGrid">
+          <div class="scale-opt selected" data-model="esrgan">
+            <div class="big" style="font-size:16px">Fast</div>
+            <div class="sub">Real-ESRGAN (~66 MB)</div>
+          </div>
+          <div class="scale-opt" data-model="swinir">
+            <div class="big" style="font-size:16px">Quality</div>
+            <div class="sub">SwinIR (~61 MB)</div>
+          </div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Scale Factor</label>
+        <div class="scale-grid">
+          <div class="scale-opt" data-scale="2">
+            <div class="big">2&times;</div>
+            <div class="sub">Quick</div>
+            <div class="ram"></div>
+          </div>
+          <div class="scale-opt" data-scale="3">
+            <div class="big">3&times;</div>
+            <div class="sub">Balanced</div>
+            <div class="ram"></div>
+          </div>
+          <div class="scale-opt selected" data-scale="4">
+            <div class="big">4&times;</div>
+            <div class="sub">Native</div>
+            <div class="ram"></div>
+          </div>
+          <div class="scale-opt" data-scale="6">
+            <div class="big">6&times;</div>
+            <div class="sub">Two-pass</div>
+            <div class="ram"></div>
+          </div>
+          <div class="scale-opt" data-scale="8">
+            <div class="big">8&times;</div>
+            <div class="sub">Two-pass</div>
+            <div class="ram"></div>
+          </div>
+          <div class="scale-opt" data-scale="16">
+            <div class="big">16&times;</div>
+            <div class="sub">Extreme</div>
+            <div class="ram"></div>
+          </div>
+        </div>
+      </div>
+      <div id="upscaleOutput"></div>
+      <div class="ai-status idle" id="aiStatus">
+        <div class="ai-dot"></div>
+        <span>Real-ESRGAN model will load on first use (~66 MB download, cached after)</span>
+      </div>
+      <div class="progress-wrap" id="aiProgress"><div class="progress-bar" id="aiProgressBar"></div></div>
+    </div>
+
+
+    <!-- Actions -->
+    <div class="actions">
+      <button class="btn btn-primary" id="processBtn"><div class="spinner"></div><span class="btn-text">Process</span></button>
+      <button class="btn btn-cancel" id="cancelBtn" style="display:none"><span class="btn-text">Cancel</span></button>
+      <button class="btn btn-success" id="downloadBtn" disabled><span class="btn-text">Download</span></button>
+    </div>
+  </div>
+
+  <div class="toasts" id="toasts"></div>
+
+  <!-- Keyboard Shortcuts Help -->
+  <details class="shortcuts-help" style="max-width:960px;margin:0 auto;padding:0 20px">
+    <summary>Keyboard Shortcuts</summary>
+    <div class="shortcuts-grid">
+      <kbd>Ctrl+S</kbd><span>Download</span>
+      <kbd>Ctrl+O</kbd><span>Open file</span>
+      <kbd>Ctrl+Enter</kbd><span>Process</span>
+    </div>
+  </details>
+</div>
+
+<canvas id="workCanvas" style="display:none"></canvas>
+
+<script type="module">
+
+/* ===== ONNX Runtime Config ===== */
+if (typeof ort !== 'undefined') {
+  ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/dist/';
+}
+
+/* ===== State ===== */
+const S = {
+  file: null,
+  img: null,          // original HTMLImageElement
+  origW: 0, origH: 0,
+  outputBlob: null,
+  outputUrl: null,
+  tab: 'resize',
+  arLocked: true,
+  aspect: 1,
+  selectedFmt: 'png',
+  svgMode: 'wrap',      // 'wrap' | 'trace'
+  traceColors: 12,
+  traceDetail: 3,       // 1-5 (maps to path simplification tolerance)
+  selectedScale: 4,
+  selectedModel: 'esrgan',  // 'esrgan' | 'swinir'
+  ortSession: null,       // ONNX InferenceSession on main thread (WebGPU)
+  modelInputName: null,
+  modelOutputName: null,
+  esrganModelBuffer: null,// cached model ArrayBuffer
+  esrganBackend: null,
+  swinirSession: null,    // true when SwinIR model is loaded
+  swinirInputName: null,
+  swinirOutputName: null,
+  swinirWorker: null,     // inference worker for SwinIR
+  swinirModelBuffer: null,
+  swinirBackend: null,
+  aiStatus: 'idle',       // idle | loading | ready | error
+  processing: false,
+  cancelRequested: false,
+  _activeInferenceWorker: null,
+  _cancelTileReject: null,
+  // Edit state
+  editCanvas: null,
+  editCtx: null,
+  history: [],
+  historyIdx: -1,
+  cropActive: false,
+  cropRect: null,
+  cropScaleX: 1,
+  cropScaleY: 1,
+  cropAspect: null,
+  // Batch
+  batchFiles: [],
+  batchResults: [],
+  // Compare
+  compareActive: false,
+  compareDividerPos: 0.5,
+  // AI BG Removal
+  bgRemoveSession: null,
+  bgRemoveStatus: 'idle',
+};
+
+/* ===== Presets ===== */
+const PRESETS = [
+  ['Instagram Post', 1080, 1080], ['Instagram Story', 1080, 1920], ['Twitter/X Post', 1200, 675],
+  ['Facebook Cover', 820, 312], ['YouTube Thumb', 1280, 720], ['LinkedIn Post', 1200, 627],
+  ['HD 720p', 1280, 720], ['Full HD', 1920, 1080], ['4K UHD', 3840, 2160],
+  ['YT Watermark 720p', 150, 150], ['YT Watermark 1080p', 200, 200], ['YT Watermark 4K', 300, 300],
+  ['Thumbnail', 150, 150], ['Icon 64', 64, 64], ['Icon 32', 32, 32],
+];
+
+const FORMATS = [
+  { id: 'png',  label: 'PNG',  mime: 'image/png',  lossy: false },
+  { id: 'jpeg', label: 'JPEG', mime: 'image/jpeg', lossy: true  },
+  { id: 'webp', label: 'WebP', mime: 'image/webp', lossy: true  },
+  { id: 'avif', label: 'AVIF', mime: 'image/avif', lossy: true  },
+  { id: 'gif',  label: 'GIF',  mime: 'image/gif',  lossy: false },
+  { id: 'bmp',  label: 'BMP',  mime: 'image/bmp',  lossy: false },
+  { id: 'tiff', label: 'TIFF', mime: 'image/tiff', lossy: false },
+  { id: 'ico',  label: 'ICO',  mime: 'image/x-icon', lossy: false },
+  { id: 'svg',  label: 'SVG',  mime: 'image/svg+xml', lossy: false },
+];
+
+/* ===== AI Model Config ===== */
+const AI_CONFIG = {
+  modelUrl: 'https://huggingface.co/crj/dl-ws/resolve/main/real_esrgan_x4.onnx',
+  modelSize: '~66 MB',
+  tileSize: 128,
+  tilePad: 16,
+  scale: 4,
+  fallbackUrl: 'https://huggingface.co/AXERA-TECH/Real-ESRGAN/resolve/main/onnx/realesrgan-x4.onnx',
+  fallbackTileSize: 64,
+};
+
+const SWINIR_CONFIG = {
+  modelUrl: 'https://huggingface.co/rocca/swin-ir-onnx/resolve/main/003_realSR_BSRGAN_DFO_s64w8_SwinIR-M_x4_GAN.onnx',
+  modelSize: '~61 MB',
+  tileSize: 64,
+  tilePad: 16,
+  scale: 4,
+  align: 8, // SwinIR window size — input dims must be multiples of this
+};
+
+/* ===== DOM ===== */
+const $ = (s) => document.querySelector(s);
+const $$ = (s) => document.querySelectorAll(s);
+const uploadZone = $('#uploadZone'), fileInput = $('#fileInput'), workspace = $('#workspace');
+const origImg = $('#origImg'), outImg = $('#outImg'), outputWrap = $('#outputWrap');
+const resW = $('#resW'), resH = $('#resH'), resPct = $('#resPct'), lockAR = $('#lockAR');
+const qualitySlider = $('#qualitySlider'), qualityVal = $('#qualityVal');
+const processBtn = $('#processBtn'), downloadBtn = $('#downloadBtn');
+const aiStatusEl = $('#aiStatus'), aiProgressWrap = $('#aiProgress'), aiProgressBar = $('#aiProgressBar');
+const workCanvas = $('#workCanvas'), ctx = workCanvas.getContext('2d');
+
+/* ===== Init ===== */
+function init() {
+  buildPresets();
+  buildFormats();
+  bindEvents();
+}
+
+function buildPresets() {
+  const el = $('#presets');
+  PRESETS.forEach(([name, w, h]) => {
+    const btn = document.createElement('button');
+    btn.className = 'preset';
+    btn.textContent = `${name} (${w}x${h})`;
+    btn.onclick = () => { resW.value = w; resH.value = h; resPct.value = ''; };
+    el.appendChild(btn);
+  });
+}
+
+function buildFormats() {
+  const grid = $('#fmtGrid');
+  FORMATS.forEach(f => {
+    const div = document.createElement('div');
+    div.className = 'fmt-opt' + (f.id === S.selectedFmt ? ' selected' : '');
+    div.dataset.fmt = f.id;
+    div.innerHTML = `${f.label}<span class="sub">${f.lossy ? 'Lossy' : 'Lossless'}</span>`;
+    div.onclick = () => selectFormat(f.id);
+    grid.appendChild(div);
+  });
+}
+
+function selectFormat(id) {
+  S.selectedFmt = id;
+  $$('.fmt-opt').forEach(el => el.classList.toggle('selected', el.dataset.fmt === id));
+  const fmt = FORMATS.find(f => f.id === id);
+  $('#qualityField').style.display = fmt.lossy ? '' : 'none';
+  const needsBg = ['jpeg', 'bmp', 'gif'].includes(id);
+  $('#bgField').style.display = needsBg ? '' : 'none';
+  $('#vectorField').style.display = id === 'svg' ? '' : 'none';
+}
+
+/* ===== Events ===== */
+function bindEvents() {
+  // Upload
+  uploadZone.onclick = () => fileInput.click();
+  fileInput.onchange = (e) => { const files = Array.from(e.target.files); if (files.length > 1) handleBatchFiles(files); else if (files[0]) loadFile(files[0]); };
+  uploadZone.ondragover = (e) => { e.preventDefault(); uploadZone.classList.add('dragover'); };
+  uploadZone.ondragleave = () => uploadZone.classList.remove('dragover');
+  uploadZone.ondrop = (e) => { e.preventDefault(); uploadZone.classList.remove('dragover'); const files = Array.from(e.dataTransfer.files); if (files.length > 1) handleBatchFiles(files); else if (files[0]) loadFile(files[0]); };
+  document.onpaste = (e) => { const items = e.clipboardData?.items; if (!items) return; for (const item of items) { if (item.type.startsWith('image/')) { loadFile(item.getAsFile()); break; } } };
+  $('#changeBtn').onclick = () => fileInput.click();
+
+  // Tabs
+  $$('.tab').forEach(t => t.onclick = () => switchTab(t.dataset.tab));
+
+  // Resize
+  resW.oninput = () => { if (S.arLocked && S.img) resH.value = Math.round(resW.value / S.aspect); resPct.value = ''; };
+  resH.oninput = () => { if (S.arLocked && S.img) resW.value = Math.round(resH.value * S.aspect); resPct.value = ''; };
+  resPct.oninput = () => { if (S.img) { resW.value = Math.round(S.origW * resPct.value / 100); resH.value = Math.round(S.origH * resPct.value / 100); } };
+  lockAR.onclick = () => { S.arLocked = !S.arLocked; lockAR.classList.toggle('linked', S.arLocked); if (S.arLocked && S.img) resH.value = Math.round(resW.value / S.aspect); };
+
+  // Convert quality
+  qualitySlider.oninput = () => qualityVal.textContent = qualitySlider.value;
+
+  // SVG mode toggle
+  const svgModes = $$('#vectorField .scale-opt');
+  svgModes.forEach(o => o.onclick = () => {
+    S.svgMode = o.dataset.svgmode;
+    svgModes.forEach(x => x.classList.toggle('selected', x === o));
+    $('#traceOpts').style.display = S.svgMode === 'trace' ? '' : 'none';
+  });
+  $('#traceColors').oninput = () => { S.traceColors = +$('#traceColors').value; $('#traceColorsVal').textContent = S.traceColors; };
+  $('#traceDetail').oninput = () => {
+    S.traceDetail = +$('#traceDetail').value;
+    $('#traceDetailVal').textContent = ['Minimal', 'Low', 'Medium', 'High', 'Maximum'][S.traceDetail - 1];
+  };
+
+  // Model selector (upscale panel)
+  const modelOpts = $$('#modelGrid .scale-opt');
+  modelOpts.forEach(o => o.onclick = () => {
+    S.selectedModel = o.dataset.model;
+    modelOpts.forEach(x => x.classList.toggle('selected', x === o));
+    updateUpscaleStatus();
+    updateScaleEstimates();
+  });
+
+  // Scale options (upscale panel only)
+  const scaleOpts = $$('#panel-upscale .scale-grid:not(#modelGrid) .scale-opt');
+  scaleOpts.forEach(o => o.onclick = () => {
+    if (o.classList.contains('disabled')) return;
+    S.selectedScale = +o.dataset.scale;
+    scaleOpts.forEach(x => x.classList.toggle('selected', x === o));
+    if (S.img) updateUpscaleInfo();
+  });
+
+  // Actions
+  processBtn.onclick = process;
+  downloadBtn.onclick = download;
+  $('#cancelBtn').onclick = async () => {
+    S.cancelRequested = true;
+    $('#cancelBtn').disabled = true;
+    $('#cancelBtn').querySelector('.btn-text').textContent = 'Cancelling...';
+    aiStatusEl.querySelector('span').textContent = 'Cancelling...';
+
+    // Worker mode (SwinIR): reject pending tile promise, terminate worker, respawn
+    if (S._cancelTileReject) {
+      S._cancelTileReject(new Error('Cancelled'));
+      S._cancelTileReject = null;
+    }
+    if (S._activeInferenceWorker) {
+      S._activeInferenceWorker.worker.terminate();
+      // Respawn SwinIR worker from cached buffer
+      if (S.swinirModelBuffer) {
+        try {
+          const newWorker = await createInferenceWorker(S.swinirModelBuffer, ['wasm'], 'wasm');
+          S.swinirWorker = newWorker;
+        } catch (e) { console.warn('Failed to respawn worker:', e); }
+      }
+      S._activeInferenceWorker = null;
+    }
+    // Main thread mode (ESRGAN): cancel flag checked after yield between tiles
+  };
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', (e) => {
+    if (e.target.matches('input, textarea, select')) return;
+    if (e.key === 'Escape' && S.processing) { S.cancelRequested = true; }
+    else if (e.ctrlKey && e.key === 's') { e.preventDefault(); download(); }
+    else if (e.ctrlKey && e.key === 'o') { e.preventDefault(); fileInput.click(); }
+    else if (e.ctrlKey && e.key === 'Enter') { e.preventDefault(); process(); }
+  });
+
+  // Compare
+  $('#compareBtn').onclick = toggleCompare;
+
+  // Batch
+  $('#batchProcessBtn').onclick = batchProcess;
+  $('#batchDownloadBtn').onclick = batchDownload;
+}
+
+function switchTab(tab) {
+  S.tab = tab;
+  $$('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  $$('.panel').forEach(p => p.classList.toggle('active', p.id === `panel-${tab}`));
+}
+
+/* ===== Upload ===== */
+function loadFile(file) {
+  S.file = file;
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = () => {
+    S.img = img;
+    S.origW = img.naturalWidth;
+    S.origH = img.naturalHeight;
+    S.aspect = S.origW / S.origH;
+    // Initialize edit canvas
+    S.editCanvas = document.createElement('canvas');
+    S.editCanvas.width = S.origW;
+    S.editCanvas.height = S.origH;
+    S.editCtx = S.editCanvas.getContext('2d');
+    S.editCtx.drawImage(img, 0, 0);
+    S.history = [{ label: 'Original', dataUrl: S.editCanvas.toDataURL() }];
+    S.historyIdx = 0;
+    S.cropActive = false;
+    // Parse EXIF for JPEG
+    if (file.type === 'image/jpeg') {
+      file.arrayBuffer().then(buf => displayExif(parseExif(buf)));
+    } else {
+      $('#exifSection').style.display = 'none';
+    }
+    clearOutput();
+    showWorkspace(file);
+    resW.value = S.origW;
+    resH.value = S.origH;
+    resPct.value = 100;
+    updateUpscaleInfo();
+    updateScaleEstimates();
+  };
+  img.onerror = () => toast('Failed to load image', 'error');
+  img.src = url;
+}
+
+function showWorkspace(file) {
+  uploadZone.style.display = 'none';
+  workspace.classList.add('visible');
+  $('#fileName').textContent = file.name;
+  origImg.src = S.img.src;
+  $('#origDims').textContent = `${S.origW} x ${S.origH}`;
+  $('#origSize').textContent = fmtBytes(file.size);
+  $('#origFmt').textContent = file.type.split('/')[1]?.toUpperCase() || '?';
+}
+
+function clearOutput() {
+  S.outputBlob = null;
+  if (S.outputUrl) URL.revokeObjectURL(S.outputUrl);
+  S.outputUrl = null;
+  outImg.style.display = 'none';
+  $('#outputPlaceholder').style.display = '';
+  $('#outDims').textContent = '-';
+  $('#outSize').textContent = '-';
+  $('#outFmt').textContent = '-';
+  downloadBtn.disabled = true;
+  if (S.compareActive) toggleCompare();
+  $('#compareBtn').style.display = 'none';
+}
+
+function updateUpscaleInfo() {
+  const el = $('#upscaleOutput');
+  if (!S.img) { el.textContent = ''; return; }
+  const nw = srcW() * S.selectedScale, nh = srcH() * S.selectedScale;
+  const pixels = nw * nh;
+  const estPng = pixels * 4;
+  const passes = S.selectedScale > 4 ? 2 : 1;
+  const passLabel = passes > 1 ? ` &middot; ${passes} AI passes` : '';
+  const m = getActiveModel();
+  const modelNote = S.selectedModel === 'swinir' ? ' &middot; Quality mode (~2x slower)' : '';
+  el.innerHTML = `<p class="note" style="margin-top:8px">Output: <strong>${nw} x ${nh}</strong> &middot; ${m.label}${passLabel}${modelNote} &middot; Est. ~${fmtBytes(estPng)} PNG</p>`;
+}
+
+/* ===== RAM Estimation ===== */
+function estimateUpscaleRAM(scale) {
+  if (!S.img) return 0;
+  const w = srcW(), h = srcH();
+  const cfg = S.selectedModel === 'swinir' ? SWINIR_CONFIG : AI_CONFIG;
+  const tileSize = cfg.tileSize, tilePad = cfg.tilePad, align = cfg.align || 1;
+  const modelBytes = S.selectedModel === 'swinir' ? 61e6 : 66e6;
+
+  // Padded tile dimensions (worst case: interior tile with full padding)
+  const padW = tileSize + 2 * tilePad;
+  const padH = tileSize + 2 * tilePad;
+  const alignW = Math.ceil(padW / align) * align;
+  const alignH = Math.ceil(padH / align) * align;
+
+  // Per-tile working memory (allocated during inference, freed after composite)
+  const tilePeak =
+    padW * padH * 4 +                          // inputImageData RGBA
+    alignW * alignH * 3 * 4 +                  // inputTensor Float32 (NCHW)
+    alignW * 4 * alignH * 4 * 3 * 4 +          // outputTensor Float32 (4x upscaled)
+    alignW * 4 * alignH * 4 * 4 +              // outputImageData RGBA
+    alignW * 4 * alignH * 4 * 4;               // tmpCanvas backing store
+
+  const passes = scale > 4 ? 2 : 1;
+  const finalW = Math.round(w * scale), finalH = Math.round(h * scale);
+  const finalCanvas = finalW * finalH * 4;     // final output canvas RGBA
+
+  // Source image canvas
+  const srcCanvas = w * h * 4;
+
+  if (passes === 1) {
+    // Single pass: AI produces into accumulator canvas (grows tile-by-tile to full 4x),
+    // then downscale to target. The accumulator is the final-scale output canvas.
+    // For 4x native: accumulator = 4x. For 2x/3x: accumulator is still 4x during
+    // inference, then replaced by smaller final canvas.
+    // Show the dominant cost: output canvas at target scale + tile working memory
+    return srcCanvas + finalCanvas + tilePeak + modelBytes;
+  }
+
+  // Two passes: pass 1 fills a 4x canvas, pass 2 uses that as input to fill target canvas
+  const pass1Out = (w * 4) * (h * 4) * 4;
+  // Peak is during pass 2: src canvas can be freed, but pass1 is the new input
+  return pass1Out + finalCanvas + tilePeak + modelBytes;
+}
+
+function getAvailableRAM() {
+  if (performance.memory) {
+    return performance.memory.jsHeapSizeLimit;
+  }
+  if (navigator.deviceMemory) {
+    return navigator.deviceMemory * 1024 * 1024 * 1024 * 0.5;
+  }
+  return Infinity;
+}
+
+function updateScaleEstimates() {
+  if (!S.img) return;
+  const available = getAvailableRAM();
+  const scaleOpts = $$('#panel-upscale .scale-grid:not(#modelGrid) .scale-opt');
+  let selectedDisabled = false;
+
+  scaleOpts.forEach(o => {
+    const scale = +o.dataset.scale;
+    const est = estimateUpscaleRAM(scale);
+    const ramEl = o.querySelector('.ram');
+    if (ramEl) ramEl.textContent = '~' + fmtBytes(est);
+
+    const tooLarge = est > available * 0.85; // 85% threshold for safety margin
+    o.classList.toggle('disabled', tooLarge);
+    if (tooLarge && scale === S.selectedScale) selectedDisabled = true;
+  });
+
+  // If current selection is disabled, pick the highest non-disabled scale
+  if (selectedDisabled) {
+    let best = null;
+    scaleOpts.forEach(o => {
+      if (!o.classList.contains('disabled')) {
+        const s = +o.dataset.scale;
+        if (!best || s > best.scale) best = { el: o, scale: s };
+      }
+    });
+    if (best) {
+      S.selectedScale = best.scale;
+      scaleOpts.forEach(x => x.classList.toggle('selected', x === best.el));
+      updateUpscaleInfo();
+    }
+  }
+}
+
+
+/* ===== Process ===== */
+async function process() {
+  if (!S.img || S.processing) return;
+  S.processing = true;
+  S.cancelRequested = false;
+  const cancelBtn = $('#cancelBtn');
+  cancelBtn.disabled = false;
+  cancelBtn.querySelector('.btn-text').textContent = 'Cancel';
+  setLoading(true);
+  clearOutput();
+
+  const progressWrap = $('#aiProgress');
+  const progressBar = $('#aiProgressBar');
+
+  try {
+    let blob;
+    switch (S.tab) {
+      case 'resize':
+        toast('Resizing...', 'info');
+        blob = await doResize();
+        break;
+      case 'convert':
+        toast('Converting...', 'info');
+        progressWrap.classList.add('visible');
+        progressBar.className = 'progress-bar indeterminate';
+        blob = await doConvert();
+        progressBar.className = 'progress-bar';
+        progressBar.style.width = '100%';
+        progressWrap.classList.remove('visible');
+        break;
+      case 'upscale': blob = await doUpscale(); break;
+    }
+    if (blob) showOutput(blob);
+  } catch (err) {
+    progressBar.className = 'progress-bar';
+    progressWrap.classList.remove('visible');
+    if (err.message === 'Cancelled') {
+      toast('Upscale cancelled', 'warning');
+    } else {
+      console.error(err);
+      toast('Processing failed: ' + err.message, 'error');
+    }
+  }
+
+  S.processing = false;
+  setLoading(false);
+  updateUpscaleStatus(); // restore status from "Cancelling..." or processing state
+}
+
+function setLoading(on) {
+  processBtn.disabled = on;
+  processBtn.classList.toggle('loading', on);
+  processBtn.style.display = on ? 'none' : '';
+  $('#cancelBtn').style.display = on ? '' : 'none';
+}
+
+function showOutput(blob) {
+  S.outputBlob = blob;
+  if (S.outputUrl) URL.revokeObjectURL(S.outputUrl);
+  S.outputUrl = URL.createObjectURL(blob);
+
+  // Always enable download — even if preview fails on huge images
+  downloadBtn.disabled = false;
+  $('#compareBtn').style.display = '';
+  $('#outSize').textContent = fmtBytes(blob.size);
+  $('#outFmt').textContent = blob.type.split('/')[1]?.toUpperCase() || '?';
+
+  const img = new Image();
+  img.onload = () => {
+    outImg.src = S.outputUrl;
+    outImg.style.display = '';
+    $('#outputPlaceholder').style.display = 'none';
+    $('#outDims').textContent = `${img.naturalWidth} x ${img.naturalHeight}`;
+    toast('Done!', 'success');
+  };
+  img.onerror = () => {
+    // Image too large to preview but download still works
+    $('#outputPlaceholder').style.display = '';
+    $('#outputPlaceholder').textContent = 'Image too large to preview — download is ready';
+    $('#outDims').textContent = 'Too large to preview';
+    outImg.style.display = 'none';
+    toast('Done! (too large to preview)', 'success');
+  };
+  img.src = S.outputUrl;
+}
+
+/* ===== sRGB ↔ Linear Light for resampling ===== */
+const SRGB_TO_LINEAR = new Float32Array(256);
+for (let i = 0; i < 256; i++) {
+  const s = i / 255;
+  SRGB_TO_LINEAR[i] = s <= 0.04045 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+}
+function linearToSrgb(v) {
+  v = Math.max(0, Math.min(1, v));
+  return v <= 0.0031308 ? Math.round(v * 12.92 * 255) : Math.round((1.055 * Math.pow(v, 1 / 2.4) - 0.055) * 255);
+}
+function lanczos3(x) {
+  if (x === 0) return 1;
+  if (x >= 3 || x <= -3) return 0;
+  const px = Math.PI * x;
+  return (Math.sin(px) / px) * (Math.sin(px / 3) / (px / 3));
+}
+
+/* ===== Web Worker Infrastructure ===== */
+function createInlineWorker(fn) {
+  const code = `'use strict';\n(${fn.toString()})();`;
+  const blob = new Blob([code], { type: 'application/javascript' });
+  return new Worker(URL.createObjectURL(blob));
+}
+
+function workerPromise(worker, msg, transfers = []) {
+  return new Promise((resolve, reject) => {
+    worker.onmessage = (e) => {
+      if (e.data.type === 'progress') {
+        if (msg._onProgress) msg._onProgress(e.data.pct, e.data.label);
+      } else if (e.data.type === 'done') {
+        worker.terminate();
+        resolve(e.data.result);
+      } else if (e.data.type === 'error') {
+        worker.terminate();
+        reject(new Error(e.data.message));
+      }
+    };
+    worker.onerror = (e) => { worker.terminate(); reject(new Error(e.message)); };
+    const { _onProgress, ...payload } = msg;
+    worker.postMessage(payload, transfers);
+  });
+}
+
+/* ONNX Inference Worker — runs model in a terminable worker thread */
+const ORT_CDN = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/dist/';
+
+function createInferenceWorker(modelBuffer, executionProviders, backend) {
+  return new Promise((resolve, reject) => {
+    const code = `'use strict';
+      let session, inputName, outputName;
+
+      self.onmessage = async (e) => {
+        const { type } = e.data;
+
+        if (type === 'init') {
+          try {
+            importScripts(e.data.ortUrl);
+            ort.env.wasm.wasmPaths = e.data.wasmPaths;
+            ort.env.wasm.numThreads = navigator.hardwareConcurrency || 4;
+            ort.env.wasm.proxy = false;
+            const buf = e.data.modelBuffer;
+            session = await ort.InferenceSession.create(buf, {
+              executionProviders: e.data.executionProviders,
+              graphOptimizationLevel: 'all',
+            });
+            inputName = session.inputNames[0];
+            outputName = session.outputNames[0];
+            self.postMessage({ type: 'ready', inputName, outputName });
+          } catch (err) {
+            self.postMessage({ type: 'error', message: err.message });
+          }
+        }
+
+        if (type === 'tile') {
+          try {
+            const { inputData, height, width, tileId } = e.data;
+            const tensor = new ort.Tensor('float32', new Float32Array(inputData), [1, 3, height, width]);
+            const feeds = {};
+            feeds[inputName] = tensor;
+            const results = await session.run(feeds);
+            const out = results[outputName].data;
+            self.postMessage({ type: 'result', tileId, outputData: out.buffer }, [out.buffer]);
+          } catch (err) {
+            self.postMessage({ type: 'error', message: err.message });
+          }
+        }
+      };
+    `;
+    const blob = new Blob([code], { type: 'application/javascript' });
+    const worker = new Worker(URL.createObjectURL(blob));
+
+    worker.onmessage = (e) => {
+      if (e.data.type === 'ready') {
+        // Restore general message handler
+        worker.onmessage = null;
+        resolve({ worker, inputName: e.data.inputName, outputName: e.data.outputName, backend });
+      } else if (e.data.type === 'error') {
+        worker.terminate();
+        reject(new Error(e.data.message));
+      }
+    };
+    worker.onerror = (e) => { worker.terminate(); reject(new Error(e.message)); };
+
+    // Send init with model buffer (transfer it for zero-copy)
+    const bufCopy = modelBuffer.slice(0); // keep original for re-creation
+    worker.postMessage({
+      type: 'init',
+      ortUrl: ORT_CDN + 'ort.min.js',
+      wasmPaths: ORT_CDN,
+      modelBuffer: bufCopy,
+      executionProviders,
+    }, [bufCopy]);
+  });
+}
+
+function runTileInWorker(workerInfo, inputData, height, width, tileId) {
+  return new Promise((resolve, reject) => {
+    const { worker } = workerInfo;
+    // Allow cancel to reject this promise immediately
+    S._cancelTileReject = reject;
+    const handler = (e) => {
+      if (e.data.type === 'result' && e.data.tileId === tileId) {
+        worker.removeEventListener('message', handler);
+        S._cancelTileReject = null;
+        resolve(new Float32Array(e.data.outputData));
+      } else if (e.data.type === 'error') {
+        worker.removeEventListener('message', handler);
+        S._cancelTileReject = null;
+        reject(new Error(e.data.message));
+      }
+    };
+    worker.addEventListener('message', handler);
+    const buf = inputData.buffer.slice(0);
+    worker.postMessage({ type: 'tile', inputData: buf, height, width, tileId }, [buf]);
+  });
+}
+
+/* Lanczos Worker — runs separable 2-pass resample in linear light */
+function lanczosWorkerFn() {
+  self.onmessage = function(e) {
+    const { srcData, srcW, srcH, dstW, dstH, srgbToLinear } = e.data;
+    const src = new Uint8ClampedArray(srcData);
+    const S2L = new Float32Array(srgbToLinear);
+
+    function linearToSrgb(v) {
+      v = Math.max(0, Math.min(1, v));
+      return v <= 0.0031308 ? Math.round(v * 12.92 * 255) : Math.round((1.055 * Math.pow(v, 1 / 2.4) - 0.055) * 255);
+    }
+    function lanczos3(x) {
+      if (x === 0) return 1;
+      if (x >= 3 || x <= -3) return 0;
+      const px = Math.PI * x;
+      return (Math.sin(px) / px) * (Math.sin(px / 3) / (px / 3));
+    }
+
+    // Horizontal pass
+    const xRatio = srcW / dstW, xSupport = Math.ceil(3 * Math.max(1, xRatio)), xScale = Math.max(1, xRatio);
+    const tmp = new Float32Array(dstW * srcH * 4);
+    for (let y = 0; y < srcH; y++) {
+      const rowOff = y * srcW * 4;
+      for (let x = 0; x < dstW; x++) {
+        const center = (x + 0.5) * xRatio - 0.5;
+        const left = Math.ceil(center - xSupport), right = Math.floor(center + xSupport);
+        let r = 0, g = 0, b = 0, a = 0, wSum = 0;
+        for (let sx = left; sx <= right; sx++) {
+          const w = lanczos3((sx - center) / xScale);
+          if (w === 0) continue;
+          const cx = Math.min(Math.max(sx, 0), srcW - 1);
+          const i = rowOff + cx * 4;
+          r += S2L[src[i]] * w; g += S2L[src[i+1]] * w; b += S2L[src[i+2]] * w;
+          a += src[i+3] * w; wSum += w;
+        }
+        const oi = (y * dstW + x) * 4, inv = 1 / wSum;
+        tmp[oi] = r * inv; tmp[oi+1] = g * inv; tmp[oi+2] = b * inv; tmp[oi+3] = a * inv;
+      }
+      if (y % 50 === 0) self.postMessage({ type: 'progress', pct: Math.round((y / srcH) * 50), label: 'Horizontal pass...' });
+    }
+
+    // Vertical pass
+    const yRatio = srcH / dstH, ySupport = Math.ceil(3 * Math.max(1, yRatio)), yScale = Math.max(1, yRatio);
+    const out = new Uint8ClampedArray(dstW * dstH * 4);
+    for (let y = 0; y < dstH; y++) {
+      const center = (y + 0.5) * yRatio - 0.5;
+      const top = Math.ceil(center - ySupport), bottom = Math.floor(center + ySupport);
+      for (let x = 0; x < dstW; x++) {
+        let r = 0, g = 0, b = 0, a = 0, wSum = 0;
+        for (let sy = top; sy <= bottom; sy++) {
+          const w = lanczos3((sy - center) / yScale);
+          if (w === 0) continue;
+          const cy = Math.min(Math.max(sy, 0), srcH - 1);
+          const i = (cy * dstW + x) * 4;
+          r += tmp[i] * w; g += tmp[i+1] * w; b += tmp[i+2] * w; a += tmp[i+3] * w; wSum += w;
+        }
+        const inv = 1 / wSum, oi = (y * dstW + x) * 4;
+        out[oi] = linearToSrgb(r * inv); out[oi+1] = linearToSrgb(g * inv); out[oi+2] = linearToSrgb(b * inv);
+        out[oi+3] = Math.round(Math.max(0, Math.min(255, a * inv)));
+      }
+      if (y % 50 === 0) self.postMessage({ type: 'progress', pct: 50 + Math.round((y / dstH) * 50), label: 'Vertical pass...' });
+    }
+
+    self.postMessage({ type: 'done', result: out.buffer }, [out.buffer]);
+  };
+}
+
+/* Adjustments Worker — per-pixel brightness/contrast/sat/hue/temp */
+function adjustWorkerFn() {
+  self.onmessage = function(e) {
+    const { pixels, width, height, brightness, contrast, saturation, hue, temperature } = e.data;
+    const d = new Uint8ClampedArray(pixels);
+    const cFactor = (259 * (contrast + 255)) / (255 * (259 - contrast));
+
+    function rgbToHsl(r, g, b) {
+      r /= 255; g /= 255; b /= 255;
+      const max = Math.max(r, g, b), min = Math.min(r, g, b);
+      let h, s, l = (max + min) / 2;
+      if (max === min) { h = s = 0; }
+      else {
+        const d = max - min;
+        s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+        switch (max) { case r: h = ((g-b)/d + (g<b?6:0))/6; break; case g: h = ((b-r)/d+2)/6; break; case b: h = ((r-g)/d+4)/6; break; }
+      }
+      return [h, s, l];
+    }
+    function hslToRgb(h, s, l) {
+      if (s === 0) { const v = Math.round(l * 255); return [v, v, v]; }
+      const hue2rgb = (p, q, t) => { if (t<0)t+=1; if(t>1)t-=1; if(t<1/6)return p+(q-p)*6*t; if(t<1/2)return q; if(t<2/3)return p+(q-p)*(2/3-t)*6; return p; };
+      const q = l < 0.5 ? l * (1+s) : l+s-l*s, p = 2*l-q;
+      return [Math.round(hue2rgb(p,q,h+1/3)*255), Math.round(hue2rgb(p,q,h)*255), Math.round(hue2rgb(p,q,h-1/3)*255)];
+    }
+
+    const total = d.length / 4;
+    for (let i = 0; i < d.length; i += 4) {
+      let r = d[i], g = d[i+1], b = d[i+2];
+      r += brightness * 2.55; g += brightness * 2.55; b += brightness * 2.55;
+      r = cFactor * (r - 128) + 128; g = cFactor * (g - 128) + 128; b = cFactor * (b - 128) + 128;
+      r += temperature * 1.5; b -= temperature * 1.5;
+      if (saturation !== 0 || hue !== 0) {
+        let [h2, s2, l] = rgbToHsl(Math.max(0,Math.min(255,r)), Math.max(0,Math.min(255,g)), Math.max(0,Math.min(255,b)));
+        if (hue !== 0) h2 = (h2 + hue/360 + 1) % 1;
+        if (saturation !== 0) s2 = Math.max(0, Math.min(1, s2 + saturation/100));
+        [r, g, b] = hslToRgb(h2, s2, l);
+      }
+      d[i] = Math.max(0,Math.min(255,Math.round(r)));
+      d[i+1] = Math.max(0,Math.min(255,Math.round(g)));
+      d[i+2] = Math.max(0,Math.min(255,Math.round(b)));
+      if (i % 40000 === 0) self.postMessage({ type: 'progress', pct: Math.round((i/4/total)*100), label: 'Adjusting...' });
+    }
+    self.postMessage({ type: 'done', result: d.buffer }, [d.buffer]);
+  };
+}
+
+/* ===== Resize (Lanczos-3 in linear light for downscale) ===== */
+function srcW() { return S.editCanvas ? S.editCanvas.width : S.origW; }
+function srcH() { return S.editCanvas ? S.editCanvas.height : S.origH; }
+function srcEl() { return S.editCanvas || S.img; }
+
+async function doResize() {
+  const sw = srcW(), sh = srcH();
+  const targetW = parseInt(resW.value) || sw;
+  const targetH = parseInt(resH.value) || sh;
+  if (targetW < 1 || targetH < 1 || targetW > 16384 || targetH > 16384) throw new Error('Invalid dimensions');
+
+  const isDownscale = targetW < sw || targetH < sh;
+  const ratio = Math.max(sw / targetW, sh / targetH);
+
+  // For upscaling or mild resize (<=2:1), canvas interpolation is fine
+  if (!isDownscale || ratio <= 2) {
+    workCanvas.width = targetW;
+    workCanvas.height = targetH;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(srcEl(), 0, 0, targetW, targetH);
+    return canvasToBlob(workCanvas, 'image/png', 1);
+  }
+
+  // For significant downscaling: Lanczos-3 in linear light
+  // Sharp edges + correct colors — same as ImageMagick/libvips
+  const srcCanvas = document.createElement('canvas');
+  srcCanvas.width = sw;
+  srcCanvas.height = sh;
+  srcCanvas.getContext('2d').drawImage(srcEl(), 0, 0);
+
+  const result = await lanczosDownscale(srcCanvas, targetW, targetH);
+
+  // Light sharpen for small outputs (watermarks, icons)
+  if (targetW <= 300 && targetH <= 300) {
+    const rCtx = result.getContext('2d');
+    const imageData = rCtx.getImageData(0, 0, targetW, targetH);
+    sharpen(imageData, 0.3);
+    rCtx.putImageData(imageData, 0, 0);
+  }
+
+  return canvasToBlob(result, 'image/png', 1);
+}
+
+/* Lanczos-3 resampler — uses Web Worker for non-blocking processing */
+async function lanczosDownscale(srcCanvas, dstW, dstH) {
+  const srcCtx = srcCanvas.getContext('2d');
+  const sw = srcCanvas.width, sh = srcCanvas.height;
+  const srcImgData = srcCtx.getImageData(0, 0, sw, sh);
+
+  const progressBar = $('#aiProgressBar');
+  const progressWrap = $('#aiProgress');
+  progressWrap.classList.add('visible');
+  progressBar.style.width = '0%';
+  progressBar.className = 'progress-bar';
+
+  try {
+    const worker = createInlineWorker(lanczosWorkerFn);
+    const s2lCopy = new Float32Array(SRGB_TO_LINEAR);
+    const msg = {
+      srcData: srcImgData.data.buffer,
+      srcW: sw, srcH: sh, dstW, dstH,
+      srgbToLinear: s2lCopy.buffer,
+      _onProgress: (pct, label) => { progressBar.style.width = pct + '%'; }
+    };
+    const resultBuf = await workerPromise(worker, msg, [srcImgData.data.buffer, s2lCopy.buffer]);
+
+    const outCanvas = document.createElement('canvas');
+    outCanvas.width = dstW; outCanvas.height = dstH;
+    const outCtx = outCanvas.getContext('2d');
+    const outImgData = new ImageData(new Uint8ClampedArray(resultBuf), dstW, dstH);
+    outCtx.putImageData(outImgData, 0, 0);
+    progressWrap.classList.remove('visible');
+    return outCanvas;
+  } catch (err) {
+    // Fallback to main-thread if worker fails
+    console.warn('Worker failed, falling back to main thread:', err);
+    progressWrap.classList.remove('visible');
+    return lanczosDownscaleSync(srcCanvas, dstW, dstH);
+  }
+}
+
+/* Synchronous fallback for Lanczos (used if Worker fails) */
+function lanczosDownscaleSync(srcCanvas, dstW, dstH) {
+  const srcCtx = srcCanvas.getContext('2d');
+  const sw = srcCanvas.width, sh = srcCanvas.height;
+  const src = srcCtx.getImageData(0, 0, sw, sh).data;
+  const xRatio = sw / dstW, xSupport = Math.ceil(3 * Math.max(1, xRatio)), xScale = Math.max(1, xRatio);
+  const tmp = new Float32Array(dstW * sh * 4);
+  for (let y = 0; y < sh; y++) {
+    const rowOff = y * sw * 4;
+    for (let x = 0; x < dstW; x++) {
+      const center = (x + 0.5) * xRatio - 0.5;
+      const left = Math.ceil(center - xSupport), right = Math.floor(center + xSupport);
+      let r = 0, g = 0, b = 0, a = 0, wSum = 0;
+      for (let sx = left; sx <= right; sx++) {
+        const w = lanczos3((sx - center) / xScale); if (w === 0) continue;
+        const cx = Math.min(Math.max(sx, 0), sw - 1), i = rowOff + cx * 4;
+        r += SRGB_TO_LINEAR[src[i]] * w; g += SRGB_TO_LINEAR[src[i+1]] * w; b += SRGB_TO_LINEAR[src[i+2]] * w;
+        a += src[i+3] * w; wSum += w;
+      }
+      const oi = (y * dstW + x) * 4, inv = 1 / wSum;
+      tmp[oi] = r*inv; tmp[oi+1] = g*inv; tmp[oi+2] = b*inv; tmp[oi+3] = a*inv;
+    }
+  }
+  const yRatio = sh / dstH, ySupport = Math.ceil(3 * Math.max(1, yRatio)), yScale = Math.max(1, yRatio);
+  const outCanvas = document.createElement('canvas'); outCanvas.width = dstW; outCanvas.height = dstH;
+  const outCtx = outCanvas.getContext('2d');
+  const outImg = outCtx.createImageData(dstW, dstH); const out = outImg.data;
+  for (let y = 0; y < dstH; y++) {
+    const center = (y + 0.5) * yRatio - 0.5;
+    const top = Math.ceil(center - ySupport), bottom = Math.floor(center + ySupport);
+    for (let x = 0; x < dstW; x++) {
+      let r = 0, g = 0, b = 0, a = 0, wSum = 0;
+      for (let sy = top; sy <= bottom; sy++) {
+        const w = lanczos3((sy - center) / yScale); if (w === 0) continue;
+        const cy = Math.min(Math.max(sy, 0), sh - 1), i = (cy * dstW + x) * 4;
+        r += tmp[i]*w; g += tmp[i+1]*w; b += tmp[i+2]*w; a += tmp[i+3]*w; wSum += w;
+      }
+      const inv = 1/wSum, oi = (y * dstW + x) * 4;
+      out[oi] = linearToSrgb(r*inv); out[oi+1] = linearToSrgb(g*inv); out[oi+2] = linearToSrgb(b*inv);
+      out[oi+3] = Math.round(Math.max(0, Math.min(255, a*inv)));
+    }
+  }
+  outCtx.putImageData(outImg, 0, 0);
+  return outCanvas;
+}
+
+/* ===== Convert ===== */
+async function doConvert() {
+  const fmt = FORMATS.find(f => f.id === S.selectedFmt);
+  if (!fmt) throw new Error('Unknown format');
+
+  const sw = srcW(), sh = srcH();
+  workCanvas.width = sw;
+  workCanvas.height = sh;
+
+  const noAlpha = ['jpeg', 'bmp', 'gif'].includes(fmt.id);
+
+  // Fill background for non-alpha formats
+  if (noAlpha) {
+    ctx.fillStyle = $('#bgColor').value;
+    ctx.fillRect(0, 0, sw, sh);
+  } else {
+    ctx.clearRect(0, 0, sw, sh);
+  }
+  ctx.drawImage(srcEl(), 0, 0);
+
+  // Custom encoders for formats not natively supported by canvas
+  if (fmt.id === 'bmp')  return encodeBMP(workCanvas);
+  if (fmt.id === 'gif')  return encodeGIF(workCanvas);
+  if (fmt.id === 'tiff') return encodeTIFF(workCanvas);
+  if (fmt.id === 'ico')  return await encodeICO(workCanvas);
+  if (fmt.id === 'svg')  return await encodeSVG(workCanvas);
+
+  const quality = fmt.lossy ? parseInt(qualitySlider.value) / 100 : undefined;
+
+  // Test format support
+  const blob = await canvasToBlob(workCanvas, fmt.mime, quality);
+  if (blob.type !== fmt.mime && fmt.id !== 'png' && fmt.id !== 'jpeg') {
+    throw new Error(`Your browser does not support ${fmt.label} export. Try Chrome/Edge for full format support.`);
+  }
+  return blob;
+}
+
+/* ===== AI Upscale ===== */
+function getActiveModel() {
+  if (S.selectedModel === 'swinir') {
+    return { config: SWINIR_CONFIG, session: S.swinirSession, worker: S.swinirWorker, modelBuffer: S.swinirModelBuffer, inputName: S.swinirInputName, outputName: S.swinirOutputName, label: 'SwinIR', mode: 'worker' };
+  }
+  return { config: AI_CONFIG, session: S.ortSession, worker: null, modelBuffer: S.esrganModelBuffer, inputName: S.modelInputName, outputName: S.modelOutputName, label: 'Real-ESRGAN', mode: 'mainthread' };
+}
+
+async function doUpscale() {
+  const scale = S.selectedScale;
+
+  // Large image guard
+  const outW = srcW() * scale, outH = srcH() * scale;
+  const outPixels = outW * outH;
+  if (outPixels > 4096 * 4096) {
+    if (!confirm(`Output will be ${outW} x ${outH} (${fmtBytes(outPixels * 4)} uncompressed). This may use significant memory. Continue?`)) return null;
+  }
+
+  const ok = await ensureAI();
+  if (ok) {
+    return await runAIUpscale(scale);
+  } else {
+    const m = getActiveModel();
+    toast(`${m.label} unavailable, using enhanced upscale instead`, 'warning');
+    return enhancedUpscale(scale);
+  }
+}
+
+async function ensureAI() {
+  const isSwinIR = S.selectedModel === 'swinir';
+  const existingSession = isSwinIR ? S.swinirSession : S.ortSession;
+  if (existingSession) return true;
+  const errorKey = isSwinIR ? '_swinirError' : '_esrganError';
+  if (S[errorKey]) return false;
+  if (typeof ort === 'undefined') {
+    toast('ONNX Runtime failed to load from CDN', 'error');
+    S.aiStatus = 'error';
+    setAIStatus('error');
+    return false;
+  }
+
+  const config = isSwinIR ? SWINIR_CONFIG : AI_CONFIG;
+  const modelLabel = isSwinIR ? 'SwinIR' : 'Real-ESRGAN';
+
+  setAIStatus('loading');
+  aiProgressWrap.classList.add('visible');
+  aiProgressBar.style.width = '0%';
+  aiProgressBar.className = 'progress-bar';
+
+  try {
+    // Download model with progress
+    const modelBuffer = await fetchModelWithProgress(config.modelUrl, modelLabel);
+
+    if (isSwinIR) {
+      // SwinIR: Worker + WASM (WebGPU Slice kernel fails for SwinIR)
+      const backend = 'wasm';
+      toast(`Loading SwinIR model (WASM backend)...`, 'info');
+      const workerInfo = await createInferenceWorker(modelBuffer, ['wasm'], backend);
+      console.log(`SwinIR loaded in worker. Input: "${workerInfo.inputName}", Output: "${workerInfo.outputName}"`);
+      S.swinirWorker = workerInfo;
+      S.swinirSession = true;
+      S.swinirInputName = workerInfo.inputName;
+      S.swinirOutputName = workerInfo.outputName;
+      S.swinirBackend = backend;
+      S.swinirModelBuffer = modelBuffer;
+    } else {
+      // Real-ESRGAN: Main thread + WebGPU (much faster than WASM)
+      let backend = 'webgpu';
+      let executionProviders = ['webgpu', 'wasm'];
+      if (!navigator.gpu) { backend = 'wasm'; executionProviders = ['wasm']; }
+      toast(`Loading Real-ESRGAN model (${backend.toUpperCase()} backend)...`, 'info');
+      ort.env.wasm.numThreads = navigator.hardwareConcurrency || 4;
+      const session = await ort.InferenceSession.create(modelBuffer, {
+        executionProviders,
+        graphOptimizationLevel: 'all',
+      });
+      console.log(`Real-ESRGAN loaded on main thread (${backend}). Input: "${session.inputNames[0]}", Output: "${session.outputNames[0]}"`);
+      S.ortSession = session;
+      S.modelInputName = session.inputNames[0];
+      S.modelOutputName = session.outputNames[0];
+      S.esrganBackend = backend;
+      S.esrganModelBuffer = modelBuffer;
+    }
+
+    setAIStatus('ready');
+    aiProgressWrap.classList.remove('visible');
+    toast(`${modelLabel} model loaded successfully`, 'success');
+    return true;
+  } catch (err) {
+    console.error('AI load failed:', err);
+
+    // Try fallback model (Real-ESRGAN only)
+    if (!isSwinIR && AI_CONFIG.fallbackUrl && !S._triedFallback) {
+      S._triedFallback = true;
+      toast('Primary model failed, trying fallback...', 'warning');
+      AI_CONFIG.modelUrl = AI_CONFIG.fallbackUrl;
+      AI_CONFIG.tileSize = AI_CONFIG.fallbackTileSize;
+      S.aiStatus = 'idle';
+      return ensureAI();
+    }
+
+    S[errorKey] = true;
+    setAIStatus('error');
+    aiProgressWrap.classList.remove('visible');
+    toast(`Could not load ${modelLabel} model: ` + err.message, 'error');
+    return false;
+  }
+}
+
+/* ===== IndexedDB Model Cache ===== */
+function openModelDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open('ImageToolModels', 1);
+    req.onupgradeneeded = () => req.result.createObjectStore('models');
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function getCachedModel(key) {
+  const db = await openModelDB();
+  return new Promise((resolve) => {
+    const tx = db.transaction('models', 'readonly');
+    const req = tx.objectStore('models').get(key);
+    req.onsuccess = () => resolve(req.result || null);
+    req.onerror = () => resolve(null);
+  });
+}
+
+async function cacheModel(key, buffer) {
+  const db = await openModelDB();
+  const tx = db.transaction('models', 'readwrite');
+  tx.objectStore('models').put(buffer, key);
+  return new Promise((resolve) => { tx.oncomplete = resolve; });
+}
+
+async function fetchModelWithProgress(url, label) {
+  // Check IndexedDB cache first
+  const cacheKey = 'model_' + url.split('/').pop();
+  try {
+    const cached = await getCachedModel(cacheKey);
+    if (cached) {
+      aiProgressBar.style.width = '100%';
+      toast(`${label || 'Model'} loaded from cache`, 'info');
+      return cached;
+    }
+  } catch (e) { /* IDB unavailable */ }
+
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Model download failed: ${response.status}`);
+
+  const contentLength = response.headers.get('Content-Length');
+  const total = contentLength ? parseInt(contentLength) : 0;
+
+  if (!response.body || !total) {
+    aiProgressBar.className = 'progress-bar indeterminate';
+    const buffer = await response.arrayBuffer();
+    aiProgressBar.className = 'progress-bar';
+    aiProgressBar.style.width = '100%';
+    try { await cacheModel(cacheKey, buffer); } catch (e) {}
+    return buffer;
+  }
+
+  const reader = response.body.getReader();
+  const chunks = [];
+  let received = 0;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    received += value.length;
+    const pct = Math.round((received / total) * 100);
+    aiProgressBar.style.width = pct + '%';
+    aiStatusEl.querySelector('span').textContent =
+      `Downloading ${label || 'model'}... ${pct}% (${fmtBytes(received)} / ${fmtBytes(total)})`;
+    if (S.cancelRequested) { reader.cancel(); throw new Error('Cancelled'); }
+  }
+
+  const buffer = new Uint8Array(received);
+  let offset = 0;
+  for (const chunk of chunks) { buffer.set(chunk, offset); offset += chunk.length; }
+  const ab = buffer.buffer;
+  try { await cacheModel(cacheKey, ab); } catch (e) {}
+  return ab;
+}
+
+async function runAIUpscale(targetScale) {
+  const m = getActiveModel();
+  toast(`Running ${m.label} ${targetScale}x super-resolution...`, 'info');
+  aiProgressWrap.classList.add('visible');
+  aiProgressBar.className = 'progress-bar';
+  aiProgressBar.style.width = '0%';
+  S._upscaleEstPeak = estimateUpscaleRAM(targetScale);
+
+  try {
+    let currentCanvas = document.createElement('canvas');
+    currentCanvas.width = srcW();
+    currentCanvas.height = srcH();
+    currentCanvas.getContext('2d').drawImage(srcEl(), 0, 0);
+
+    // Determine how many 4x passes needed
+    // <=4x: one pass then downscale. >4x: two passes then downscale.
+    const passes = targetScale > 4 ? 2 : 1;
+
+    for (let p = 0; p < passes; p++) {
+      if (passes === 2) toast(`Pass ${p + 1}/${passes}: upscaling ${currentCanvas.width}x${currentCanvas.height}...`, 'info');
+      currentCanvas = await processWithTiles(currentCanvas, m.config, m);
+    }
+
+    // After passes we have 4x (one pass) or 16x (two passes) of original
+    // Scale to exact target dimensions
+    const nativeScale = Math.pow(4, passes); // 4 or 16
+    let finalCanvas = currentCanvas;
+
+    if (targetScale !== nativeScale) {
+      const finalW = Math.round(srcW() * targetScale);
+      const finalH = Math.round(srcH() * targetScale);
+      finalCanvas = document.createElement('canvas');
+      finalCanvas.width = finalW;
+      finalCanvas.height = finalH;
+      const fCtx = finalCanvas.getContext('2d');
+      fCtx.imageSmoothingEnabled = true;
+      fCtx.imageSmoothingQuality = 'high';
+      fCtx.drawImage(currentCanvas, 0, 0, finalW, finalH);
+    }
+
+    aiProgressWrap.classList.remove('visible');
+    return canvasToBlob(finalCanvas, 'image/png', 1);
+  } catch (err) {
+    aiProgressWrap.classList.remove('visible');
+    aiProgressBar.className = 'progress-bar';
+    throw err;
+  }
+}
+
+async function processWithTiles(srcCanvas, cfg, model) {
+  const srcCtx = srcCanvas.getContext('2d');
+  const srcW = srcCanvas.width, srcH = srcCanvas.height;
+  const scale = 4; // Both models are 4x
+  const tileSize = cfg.tileSize, tilePad = cfg.tilePad;
+  const align = cfg.align || 1; // SwinIR needs multiples of 8
+  const useWorker = model.mode === 'worker';
+
+  const outCanvas = document.createElement('canvas');
+  outCanvas.width = srcW * scale;
+  outCanvas.height = srcH * scale;
+  const outCtx = outCanvas.getContext('2d');
+
+  const tilesX = Math.ceil(srcW / tileSize);
+  const tilesY = Math.ceil(srcH / tileSize);
+  const totalTiles = tilesX * tilesY;
+  let tilesDone = 0;
+
+  // Store ref so cancel can terminate worker (worker mode only)
+  if (useWorker) S._activeInferenceWorker = model.worker;
+
+  for (let ty = 0; ty < tilesY; ty++) {
+    for (let tx = 0; tx < tilesX; tx++) {
+      if (S.cancelRequested) throw new Error('Cancelled');
+
+      const inX = tx * tileSize, inY = ty * tileSize;
+      const inW = Math.min(tileSize, srcW - inX);
+      const inH = Math.min(tileSize, srcH - inY);
+
+      // Padded region (clamped to image bounds)
+      const padX1 = Math.max(0, inX - tilePad);
+      const padY1 = Math.max(0, inY - tilePad);
+      const padX2 = Math.min(srcW, inX + inW + tilePad);
+      const padY2 = Math.min(srcH, inY + inH + tilePad);
+      const padW = padX2 - padX1, padH = padY2 - padY1;
+
+      const tileImageData = srcCtx.getImageData(padX1, padY1, padW, padH);
+
+      // Align dimensions to required multiple (SwinIR needs multiples of 8)
+      const alignW = Math.ceil(padW / align) * align;
+      const alignH = Math.ceil(padH / align) * align;
+      const needsAlign = alignW !== padW || alignH !== padH;
+
+      let inputTensor;
+      if (needsAlign) {
+        const alignCanvas = document.createElement('canvas');
+        alignCanvas.width = alignW;
+        alignCanvas.height = alignH;
+        const alignCtx = alignCanvas.getContext('2d');
+        alignCtx.putImageData(tileImageData, 0, 0);
+        const alignedData = alignCtx.getImageData(0, 0, alignW, alignH);
+        inputTensor = imageDataToNCHW(alignedData, alignW, alignH);
+      } else {
+        inputTensor = imageDataToNCHW(tileImageData, padW, padH);
+      }
+
+      let outputData;
+      if (useWorker) {
+        // SwinIR: run in worker (WASM, can be terminated on cancel)
+        const tileId = ty * tilesX + tx;
+        outputData = await runTileInWorker(model.worker, inputTensor, alignH, alignW, tileId);
+      } else {
+        // Real-ESRGAN: run on main thread (WebGPU, fast)
+        const tensor = new ort.Tensor('float32', inputTensor, [1, 3, alignH, alignW]);
+        const feeds = {};
+        feeds[model.inputName] = tensor;
+        const results = await model.session.run(feeds);
+        outputData = results[model.outputName].data;
+        // Yield to UI thread so cancel clicks register between tiles
+        await new Promise(r => setTimeout(r, 0));
+      }
+
+      const outAlignW = alignW * scale, outAlignH = alignH * scale;
+      const outFullData = nchwToImageData(outputData, outAlignW, outAlignH);
+
+      const cropLeft = (inX - padX1) * scale;
+      const cropTop = (inY - padY1) * scale;
+      const cropW = inW * scale, cropH = inH * scale;
+
+      const tmpCanvas = document.createElement('canvas');
+      tmpCanvas.width = outAlignW;
+      tmpCanvas.height = outAlignH;
+      tmpCanvas.getContext('2d').putImageData(outFullData, 0, 0);
+
+      outCtx.drawImage(tmpCanvas, cropLeft, cropTop, cropW, cropH,
+                        inX * scale, inY * scale, cropW, cropH);
+
+      tilesDone++;
+      const pct = Math.round((tilesDone / totalTiles) * 100);
+      aiProgressBar.style.width = pct + '%';
+      aiStatusEl.querySelector('span').textContent = `Processing tile ${tilesDone}/${totalTiles} (${pct}%)`;
+    }
+  }
+  S._activeInferenceWorker = null;
+  return outCanvas;
+}
+
+function imageDataToNCHW(imageData, w, h) {
+  const rgba = imageData.data;
+  const pixels = w * h;
+  const f32 = new Float32Array(3 * pixels);
+  for (let i = 0; i < pixels; i++) {
+    const ri = i * 4;
+    f32[i]              = rgba[ri]     / 255.0;
+    f32[pixels + i]     = rgba[ri + 1] / 255.0;
+    f32[2 * pixels + i] = rgba[ri + 2] / 255.0;
+  }
+  return f32;
+}
+
+function nchwToImageData(nchw, w, h) {
+  const pixels = w * h;
+  const rgba = new Uint8ClampedArray(pixels * 4);
+  for (let i = 0; i < pixels; i++) {
+    rgba[i * 4]     = Math.round(Math.max(0, Math.min(1, nchw[i]))              * 255);
+    rgba[i * 4 + 1] = Math.round(Math.max(0, Math.min(1, nchw[pixels + i]))     * 255);
+    rgba[i * 4 + 2] = Math.round(Math.max(0, Math.min(1, nchw[2 * pixels + i])) * 255);
+    rgba[i * 4 + 3] = 255;
+  }
+  return new ImageData(rgba, w, h);
+}
+
+/* Enhanced (non-AI) upscale fallback */
+function enhancedUpscale(scale) {
+  const nw = Math.round(srcW() * scale);
+  const nh = Math.round(srcH() * scale);
+
+  // Multi-step upscale for better quality
+  let srcCanvas = document.createElement('canvas');
+  srcCanvas.width = srcW();
+  srcCanvas.height = srcH();
+  srcCanvas.getContext('2d').drawImage(srcEl(), 0, 0);
+
+  // Upscale in steps of 2x for better quality
+  let currentW = S.origW, currentH = S.origH;
+  while (currentW < nw || currentH < nh) {
+    const stepW = Math.min(currentW * 2, nw);
+    const stepH = Math.min(currentH * 2, nh);
+    const stepCanvas = document.createElement('canvas');
+    stepCanvas.width = stepW;
+    stepCanvas.height = stepH;
+    const sCtx = stepCanvas.getContext('2d');
+    sCtx.imageSmoothingEnabled = true;
+    sCtx.imageSmoothingQuality = 'high';
+    sCtx.drawImage(srcCanvas, 0, 0, stepW, stepH);
+    srcCanvas = stepCanvas;
+    currentW = stepW;
+    currentH = stepH;
+  }
+
+  // Apply sharpening
+  const sCtx = srcCanvas.getContext('2d');
+  const imageData = sCtx.getImageData(0, 0, nw, nh);
+  sharpen(imageData, 0.4);
+  sCtx.putImageData(imageData, 0, 0);
+
+  return canvasToBlob(srcCanvas, 'image/png', 1);
+}
+
+/* ===== Sharpening (Unsharp Mask) ===== */
+function sharpen(imageData, strength) {
+  const { width: w, height: h, data } = imageData;
+  const copy = new Uint8ClampedArray(data);
+
+  for (let y = 1; y < h - 1; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      const i = (y * w + x) * 4;
+      for (let c = 0; c < 3; c++) {
+        const center = copy[i + c];
+        const neighbors = (
+          copy[((y-1)*w + x)*4 + c] + copy[((y+1)*w + x)*4 + c] +
+          copy[(y*w + x-1)*4 + c] + copy[(y*w + x+1)*4 + c] +
+          copy[((y-1)*w + x-1)*4 + c] + copy[((y-1)*w + x+1)*4 + c] +
+          copy[((y+1)*w + x-1)*4 + c] + copy[((y+1)*w + x+1)*4 + c]
+        ) / 8;
+        data[i + c] = Math.max(0, Math.min(255, center + strength * (center - neighbors)));
+      }
+    }
+  }
+}
+
+/* ===== BMP Encoder ===== */
+function encodeBMP(canvas) {
+  const { width: w, height: h } = canvas;
+  const imgData = canvas.getContext('2d').getImageData(0, 0, w, h);
+  const px = imgData.data;
+
+  const rowBytes = w * 3;
+  const padding = (4 - (rowBytes % 4)) % 4;
+  const rowSize = rowBytes + padding;
+  const dataSize = rowSize * h;
+  const fileSize = 54 + dataSize;
+
+  const buf = new ArrayBuffer(fileSize);
+  const v = new DataView(buf);
+  const b = new Uint8Array(buf);
+
+  b[0] = 0x42; b[1] = 0x4D;
+  v.setUint32(2, fileSize, true);
+  v.setUint32(10, 54, true);
+  v.setUint32(14, 40, true);
+  v.setInt32(18, w, true);
+  v.setInt32(22, -h, true); // top-down
+  v.setUint16(26, 1, true);
+  v.setUint16(28, 24, true);
+  v.setUint32(34, dataSize, true);
+  v.setUint32(38, 2835, true);
+  v.setUint32(42, 2835, true);
+
+  let off = 54;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
+      b[off++] = px[i + 2]; // B
+      b[off++] = px[i + 1]; // G
+      b[off++] = px[i];     // R
+    }
+    off += padding;
+  }
+
+  return new Blob([buf], { type: 'image/bmp' });
+}
+
+/* ===== GIF Encoder (median-cut color quantization, LZW compressed) ===== */
+function encodeGIF(canvas) {
+  const { width: w, height: h } = canvas;
+  const px = canvas.getContext('2d').getImageData(0, 0, w, h).data;
+
+  // Median-cut quantization to 256 colors
+  const palette = medianCutQuantize(px, 256);
+  const indexed = new Uint8Array(w * h);
+  for (let i = 0; i < w * h; i++) {
+    const off = i * 4;
+    indexed[i] = nearestColor(palette, px[off], px[off + 1], px[off + 2]);
+  }
+
+  // Build GIF binary
+  const out = [];
+  const push = (...bytes) => out.push(...bytes);
+  const pushLE16 = v => { out.push(v & 0xFF, (v >> 8) & 0xFF); };
+
+  // Header
+  push(0x47, 0x49, 0x46, 0x38, 0x39, 0x61); // GIF89a
+  pushLE16(w); pushLE16(h);
+  push(0xF7, 0, 0); // GCT flag, 256 colors (2^(7+1)), bg=0, aspect=0
+
+  // Global Color Table (256 * 3 bytes)
+  for (let i = 0; i < 256; i++) {
+    push(palette[i * 3], palette[i * 3 + 1], palette[i * 3 + 2]);
+  }
+
+  // Image descriptor
+  push(0x2C); // image separator
+  pushLE16(0); pushLE16(0); pushLE16(w); pushLE16(h);
+  push(0); // no local CT, not interlaced
+
+  // LZW-compress indexed data
+  const minCodeSize = 8;
+  push(minCodeSize);
+  const lzwData = lzwEncode(indexed, minCodeSize);
+  // Write sub-blocks (max 255 bytes each)
+  let pos = 0;
+  while (pos < lzwData.length) {
+    const chunk = Math.min(255, lzwData.length - pos);
+    push(chunk);
+    for (let i = 0; i < chunk; i++) push(lzwData[pos++]);
+  }
+  push(0); // block terminator
+  push(0x3B); // trailer
+
+  return new Blob([new Uint8Array(out)], { type: 'image/gif' });
+}
+
+function medianCutQuantize(px, maxColors) {
+  // Collect unique-ish colors (sample if image is large)
+  const colors = [];
+  const step = px.length > 400000 ? 4 : 1; // sample every Nth pixel for large images
+  for (let i = 0; i < px.length; i += step * 4) {
+    colors.push([px[i], px[i + 1], px[i + 2]]);
+  }
+
+  // Recursive median cut
+  let buckets = [colors];
+  while (buckets.length < maxColors) {
+    // Find bucket with widest range
+    let maxRange = -1, splitIdx = 0;
+    for (let i = 0; i < buckets.length; i++) {
+      const b = buckets[i];
+      if (b.length < 2) continue;
+      for (let ch = 0; ch < 3; ch++) {
+        let lo = 255, hi = 0;
+        for (const c of b) { if (c[ch] < lo) lo = c[ch]; if (c[ch] > hi) hi = c[ch]; }
+        const range = hi - lo;
+        if (range > maxRange) { maxRange = range; splitIdx = i; }
+      }
+    }
+    if (maxRange <= 0) break;
+
+    const bucket = buckets[splitIdx];
+    // Find channel with widest range in this bucket
+    let bestCh = 0, bestRange = 0;
+    for (let ch = 0; ch < 3; ch++) {
+      let lo = 255, hi = 0;
+      for (const c of bucket) { if (c[ch] < lo) lo = c[ch]; if (c[ch] > hi) hi = c[ch]; }
+      if (hi - lo > bestRange) { bestRange = hi - lo; bestCh = ch; }
+    }
+
+    bucket.sort((a, b) => a[bestCh] - b[bestCh]);
+    const mid = bucket.length >> 1;
+    buckets.splice(splitIdx, 1, bucket.slice(0, mid), bucket.slice(mid));
+  }
+
+  // Average each bucket for palette
+  const palette = new Uint8Array(maxColors * 3);
+  for (let i = 0; i < Math.min(buckets.length, maxColors); i++) {
+    const b = buckets[i];
+    let r = 0, g = 0, bl = 0;
+    for (const c of b) { r += c[0]; g += c[1]; bl += c[2]; }
+    palette[i * 3] = Math.round(r / b.length);
+    palette[i * 3 + 1] = Math.round(g / b.length);
+    palette[i * 3 + 2] = Math.round(bl / b.length);
+  }
+  return palette;
+}
+
+function nearestColor(palette, r, g, b) {
+  let best = 0, bestDist = Infinity;
+  for (let i = 0; i < 256; i++) {
+    const dr = r - palette[i * 3], dg = g - palette[i * 3 + 1], db = b - palette[i * 3 + 2];
+    const d = dr * dr + dg * dg + db * db;
+    if (d < bestDist) { bestDist = d; best = i; }
+    if (d === 0) break;
+  }
+  return best;
+}
+
+function lzwEncode(data, minCodeSize) {
+  const clearCode = 1 << minCodeSize;
+  const eoiCode = clearCode + 1;
+  let codeSize = minCodeSize + 1;
+  let nextCode = eoiCode + 1;
+  const maxCode = 4096;
+
+  const output = [];
+  let bits = 0, buf = 0;
+  const emit = (code) => {
+    buf |= code << bits;
+    bits += codeSize;
+    while (bits >= 8) { output.push(buf & 0xFF); buf >>= 8; bits -= 8; }
+  };
+
+  // Init dictionary
+  let dict = new Map();
+  const resetDict = () => {
+    dict = new Map();
+    for (let i = 0; i < clearCode; i++) dict.set(String(i), i);
+    nextCode = eoiCode + 1;
+    codeSize = minCodeSize + 1;
+  };
+
+  emit(clearCode);
+  resetDict();
+
+  let w = String(data[0]);
+  for (let i = 1; i < data.length; i++) {
+    const k = String(data[i]);
+    const wk = w + ',' + k;
+    if (dict.has(wk)) {
+      w = wk;
+    } else {
+      emit(dict.get(w));
+      if (nextCode < maxCode) {
+        dict.set(wk, nextCode++);
+        if (nextCode > (1 << codeSize) && codeSize < 12) codeSize++;
+      } else {
+        emit(clearCode);
+        resetDict();
+      }
+      w = k;
+    }
+  }
+  emit(dict.get(w));
+  emit(eoiCode);
+  if (bits > 0) output.push(buf & 0xFF);
+
+  return output;
+}
+
+/* ===== TIFF Encoder (uncompressed RGBA) ===== */
+function encodeTIFF(canvas) {
+  const { width: w, height: h } = canvas;
+  const px = canvas.getContext('2d').getImageData(0, 0, w, h).data;
+
+  // Uncompressed RGBA TIFF
+  const imageDataSize = w * h * 4;
+  const ifdOffset = 8; // right after header
+  const numTags = 12;
+  const ifdSize = 2 + numTags * 12 + 4; // count + tags + next-IFD ptr
+  const dataOffset = ifdOffset + ifdSize + 8 + 8; // + BitsPerSample(8) + StripByteCounts value space(8)
+  // Actually let's keep it simple: header(8) + IFD + extra data + pixel data
+  const bpsOffset = ifdOffset + ifdSize;
+  const stripDataOffset = bpsOffset + 8; // 4 shorts for BitsPerSample = 8 bytes
+  const fileSize = stripDataOffset + imageDataSize;
+
+  const buf = new ArrayBuffer(fileSize);
+  const v = new DataView(buf);
+  const u8 = new Uint8Array(buf);
+
+  // Header (little-endian)
+  u8[0] = 0x49; u8[1] = 0x49; // "II" = little-endian
+  v.setUint16(2, 42, true);     // magic
+  v.setUint32(4, ifdOffset, true); // IFD offset
+
+  let off = ifdOffset;
+  v.setUint16(off, numTags, true); off += 2;
+
+  const writeTag = (tag, type, count, value) => {
+    v.setUint16(off, tag, true); off += 2;
+    v.setUint16(off, type, true); off += 2;
+    v.setUint32(off, count, true); off += 4;
+    v.setUint32(off, value, true); off += 4;
+  };
+
+  writeTag(256, 3, 1, w);            // ImageWidth (SHORT)
+  writeTag(257, 3, 1, h);            // ImageLength
+  writeTag(258, 3, 4, bpsOffset);    // BitsPerSample → offset to 4 shorts
+  writeTag(259, 3, 1, 1);            // Compression: none
+  writeTag(262, 3, 1, 2);            // PhotometricInterpretation: RGB
+  writeTag(273, 4, 1, stripDataOffset); // StripOffsets
+  writeTag(277, 3, 1, 4);            // SamplesPerPixel: 4 (RGBA)
+  writeTag(278, 4, 1, h);            // RowsPerStrip: all rows
+  writeTag(279, 4, 1, imageDataSize); // StripByteCounts
+  writeTag(282, 5, 1, bpsOffset);    // XResolution (reuse offset, close enough)
+  writeTag(283, 5, 1, bpsOffset);    // YResolution
+  writeTag(338, 3, 1, 2);            // ExtraSamples: unassociated alpha
+
+  v.setUint32(off, 0, true); // next IFD = 0 (none)
+
+  // BitsPerSample values: 8,8,8,8
+  let boff = bpsOffset;
+  v.setUint16(boff, 8, true); boff += 2;
+  v.setUint16(boff, 8, true); boff += 2;
+  v.setUint16(boff, 8, true); boff += 2;
+  v.setUint16(boff, 8, true);
+
+  // Copy pixel data (RGBA as-is)
+  u8.set(px, stripDataOffset);
+
+  return new Blob([buf], { type: 'image/tiff' });
+}
+
+/* ===== ICO Encoder (PNG-inside-ICO for modern compatibility) ===== */
+async function encodeICO(canvas) {
+  // Scale to max 256x256 (ICO spec limit)
+  let icoCanvas = canvas;
+  const maxDim = 256;
+  if (canvas.width > maxDim || canvas.height > maxDim) {
+    const scale = Math.min(maxDim / canvas.width, maxDim / canvas.height);
+    const nw = Math.round(canvas.width * scale);
+    const nh = Math.round(canvas.height * scale);
+    icoCanvas = document.createElement('canvas');
+    icoCanvas.width = nw;
+    icoCanvas.height = nh;
+    const c = icoCanvas.getContext('2d');
+    c.imageSmoothingEnabled = true;
+    c.imageSmoothingQuality = 'high';
+    c.drawImage(canvas, 0, 0, nw, nh);
+  }
+
+  const w = icoCanvas.width, h = icoCanvas.height;
+  // Get PNG data for embedding
+  const pngBlob = await canvasToBlob(icoCanvas, 'image/png', 1);
+  const pngBuf = await pngBlob.arrayBuffer();
+  const pngData = new Uint8Array(pngBuf);
+
+  // ICO header (6 bytes) + 1 entry (16 bytes) + PNG data
+  const fileSize = 6 + 16 + pngData.length;
+  const buf = new ArrayBuffer(fileSize);
+  const v = new DataView(buf);
+  const u8 = new Uint8Array(buf);
+
+  // ICONDIR
+  v.setUint16(0, 0, true);           // reserved
+  v.setUint16(2, 1, true);           // type: 1 = ICO
+  v.setUint16(4, 1, true);           // count: 1 image
+
+  // ICONDIRENTRY
+  const entryOff = 6;
+  u8[entryOff] = w >= 256 ? 0 : w;   // width (0 = 256)
+  u8[entryOff + 1] = h >= 256 ? 0 : h; // height
+  u8[entryOff + 2] = 0;              // color count (0 = no palette)
+  u8[entryOff + 3] = 0;              // reserved
+  v.setUint16(entryOff + 4, 1, true); // color planes
+  v.setUint16(entryOff + 6, 32, true); // bits per pixel
+  v.setUint32(entryOff + 8, pngData.length, true); // image size
+  v.setUint32(entryOff + 12, 22, true); // data offset (6 + 16)
+
+  // PNG data
+  u8.set(pngData, 22);
+
+  return new Blob([buf], { type: 'image/x-icon' });
+}
+
+/* ===== SVG Wrapper (embeds raster as base64 PNG in SVG) ===== */
+async function encodeSVG(canvas) {
+  if (S.svgMode === 'trace') return traceToSVG(canvas);
+
+  const w = canvas.width, h = canvas.height;
+  const pngBlob = await canvasToBlob(canvas, 'image/png', 1);
+  const b64 = await new Promise(resolve => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.readAsDataURL(pngBlob);
+  });
+  const svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+  <image width="${w}" height="${h}" href="${b64}"/>
+</svg>`;
+  return new Blob([svg], { type: 'image/svg+xml' });
+}
+
+/* ===== True Vector Tracing (raster → SVG paths) ===== */
+function traceToSVG(canvas) {
+  const w = canvas.width, h = canvas.height;
+  const px = canvas.getContext('2d').getImageData(0, 0, w, h).data;
+  const numColors = S.traceColors;
+  const tolerance = [2.0, 1.5, 1.0, 0.5, 0.2][S.traceDetail - 1]; // path simplification
+
+  // Step 1: Quantize to N colors using median cut
+  const palette = medianCutQuantize(px, numColors);
+  const indexed = new Uint8Array(w * h);
+  for (let i = 0; i < w * h; i++) {
+    const off = i * 4;
+    indexed[i] = nearestColor(palette, px[off], px[off + 1], px[off + 2]);
+  }
+
+  // Find actual unique color indices used
+  const usedColors = new Set(indexed);
+
+  // Step 2: For each color, trace contours and generate paths
+  const paths = [];
+  for (const colorIdx of usedColors) {
+    // Create binary mask for this color
+    const mask = new Uint8Array((w + 2) * (h + 2)); // padded by 1 on all sides
+    const mw = w + 2;
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        if (indexed[y * w + x] === colorIdx) mask[(y + 1) * mw + (x + 1)] = 1;
+      }
+    }
+
+    // Marching squares to extract contour polygons
+    const contours = marchingSquares(mask, mw, w + 1, h + 1);
+
+    // Simplify and convert each contour to SVG path
+    const r = palette[colorIdx * 3], g = palette[colorIdx * 3 + 1], b = palette[colorIdx * 3 + 2];
+    const color = `rgb(${r},${g},${b})`;
+
+    let d = '';
+    for (const contour of contours) {
+      if (contour.length < 3) continue;
+      const simplified = rdpSimplify(contour, tolerance);
+      if (simplified.length < 3) continue;
+      d += `M${simplified[0][0].toFixed(1)},${simplified[0][1].toFixed(1)}`;
+      for (let i = 1; i < simplified.length; i++) {
+        d += `L${simplified[i][0].toFixed(1)},${simplified[i][1].toFixed(1)}`;
+      }
+      d += 'Z';
+    }
+    if (d) paths.push(`<path d="${d}" fill="${color}"/>`);
+  }
+
+  const svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+${paths.join('\n')}
+</svg>`;
+  return new Blob([svg], { type: 'image/svg+xml' });
+}
+
+/* Marching squares contour tracing on a padded binary mask.
+   Returns array of contour polygons (each is array of [x,y] points). */
+function marchingSquares(mask, mw, scanW, scanH) {
+  const contours = [];
+  const visited = new Set();
+
+  for (let sy = 0; sy < scanH; sy++) {
+    for (let sx = 0; sx < scanW; sx++) {
+      // Compute 2x2 cell configuration
+      const idx = cellIndex(mask, mw, sx, sy);
+      if (idx === 0 || idx === 15) continue;
+
+      const key = sy * mw + sx;
+      if (visited.has(key)) continue;
+
+      // Trace contour starting from this cell
+      const contour = traceContour(mask, mw, scanW, scanH, sx, sy, visited);
+      if (contour.length >= 3) contours.push(contour);
+    }
+  }
+  return contours;
+}
+
+function cellIndex(mask, mw, x, y) {
+  return (mask[y * mw + x] ? 1 : 0)
+       | (mask[y * mw + x + 1] ? 2 : 0)
+       | (mask[(y + 1) * mw + x + 1] ? 4 : 0)
+       | (mask[(y + 1) * mw + x] ? 8 : 0);
+}
+
+function traceContour(mask, mw, scanW, scanH, startX, startY, visited) {
+  const points = [];
+  let x = startX, y = startY;
+  let prevDir = -1; // no previous direction
+  const maxSteps = scanW * scanH * 2;
+
+  for (let step = 0; step < maxSteps; step++) {
+    const key = y * mw + x;
+    visited.add(key);
+
+    const idx = cellIndex(mask, mw, x, y);
+    if (idx === 0 || idx === 15) break;
+
+    // Interpolate edge point for this cell
+    const pt = cellEdgePoint(idx, x, y);
+    if (pt) points.push(pt);
+
+    // Determine next cell direction based on marching squares lookup
+    const dir = msDirection(idx, prevDir);
+    if (dir === -1) break;
+
+    // Move to next cell
+    if (dir === 0) y--;      // up
+    else if (dir === 1) x++; // right
+    else if (dir === 2) y++; // down
+    else if (dir === 3) x--; // left
+
+    prevDir = dir;
+
+    // Check bounds
+    if (x < 0 || x >= scanW || y < 0 || y >= scanH) break;
+    // Check if we've looped back
+    if (x === startX && y === startY) {
+      if (points.length > 0) points.push(points[0].slice()); // close
+      break;
+    }
+  }
+  return points;
+}
+
+function cellEdgePoint(idx, x, y) {
+  // Return a representative point on the edge for this cell config
+  switch (idx) {
+    case 1:  return [x, y + 0.5];
+    case 2:  return [x + 0.5, y];
+    case 3:  return [x + 0.5, y + 0.5]; // approximation
+    case 4:  return [x + 1, y + 0.5];
+    case 5:  return [x + 0.5, y + 0.5];
+    case 6:  return [x + 0.5, y];
+    case 7:  return [x + 0.5, y];
+    case 8:  return [x, y + 0.5];
+    case 9:  return [x, y + 0.5];
+    case 10: return [x + 0.5, y + 0.5];
+    case 11: return [x + 0.5, y + 1];
+    case 12: return [x + 0.5, y + 0.5];
+    case 13: return [x + 0.5, y + 1];
+    case 14: return [x + 1, y + 0.5];
+    default: return null;
+  }
+}
+
+function msDirection(idx, prevDir) {
+  // Marching squares next-direction lookup.
+  // Saddle cases (5, 10) use previous direction to disambiguate.
+  switch (idx) {
+    case 1:  return 0; // up
+    case 2:  return 1; // right
+    case 3:  return 1; // right
+    case 4:  return 2; // down
+    case 5:  return prevDir === 3 ? 0 : 2; // saddle
+    case 6:  return 2; // down
+    case 7:  return 2; // down
+    case 8:  return 3; // left
+    case 9:  return 0; // up
+    case 10: return prevDir === 0 ? 1 : 3; // saddle
+    case 11: return 1; // right
+    case 12: return 3; // left
+    case 13: return 0; // up
+    case 14: return 3; // left
+    default: return -1;
+  }
+}
+
+/* Ramer-Douglas-Peucker path simplification */
+function rdpSimplify(points, epsilon) {
+  if (points.length <= 2) return points;
+
+  let maxDist = 0, maxIdx = 0;
+  const start = points[0], end = points[points.length - 1];
+
+  for (let i = 1; i < points.length - 1; i++) {
+    const d = pointToLineDist(points[i], start, end);
+    if (d > maxDist) { maxDist = d; maxIdx = i; }
+  }
+
+  if (maxDist > epsilon) {
+    const left = rdpSimplify(points.slice(0, maxIdx + 1), epsilon);
+    const right = rdpSimplify(points.slice(maxIdx), epsilon);
+    return left.slice(0, -1).concat(right);
+  }
+  return [start, end];
+}
+
+function pointToLineDist(p, a, b) {
+  const dx = b[0] - a[0], dy = b[1] - a[1];
+  const len2 = dx * dx + dy * dy;
+  if (len2 === 0) return Math.hypot(p[0] - a[0], p[1] - a[1]);
+  const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / len2));
+  return Math.hypot(p[0] - (a[0] + t * dx), p[1] - (a[1] + t * dy));
+}
+
+/* ===== Edit: Undo/Redo ===== */
+function pushHistory(label) {
+  S.history = S.history.slice(0, S.historyIdx + 1);
+  S.history.push({ label, dataUrl: S.editCanvas.toDataURL() });
+  if (S.history.length > 30) S.history.shift();
+  S.historyIdx = S.history.length - 1;
+  updateHistoryUI();
+}
+
+function undo() {
+  if (!S.editCanvas || S.historyIdx <= 0) return;
+  S.historyIdx--;
+  restoreHistory();
+}
+
+function redo() {
+  if (!S.editCanvas || S.historyIdx >= S.history.length - 1) return;
+  S.historyIdx++;
+  restoreHistory();
+}
+
+function restoreHistory() {
+  const entry = S.history[S.historyIdx];
+  const img = new Image();
+  img.onload = () => {
+    S.editCanvas.width = img.naturalWidth;
+    S.editCanvas.height = img.naturalHeight;
+    S.editCtx.drawImage(img, 0, 0);
+    updateEditPreview();
+    updateHistoryUI();
+    updateSourceDims();
+  };
+  img.src = entry.dataUrl;
+}
+
+function resetEdits() {
+  if (!S.editCanvas || S.history.length <= 1) return;
+  S.historyIdx = 0;
+  restoreHistory();
+  toast('Reset to original', 'info');
+}
+
+function updateHistoryUI() {
+  const undoBtn = $('#undoBtn'), redoBtn = $('#redoBtn'), resetBtn = $('#resetEditsBtn');
+  if (undoBtn) undoBtn.disabled = S.historyIdx <= 0;
+  if (redoBtn) redoBtn.disabled = S.historyIdx >= S.history.length - 1;
+  if (resetBtn) resetBtn.disabled = S.history.length <= 1;
+  const label = $('#historyLabel');
+  if (label) {
+    const entry = S.history[S.historyIdx];
+    label.textContent = entry ? `${S.historyIdx}/${S.history.length - 1}: ${entry.label}` : 'No edits';
+  }
+}
+
+function updateEditPreview() {
+  if (!S.editCanvas) return;
+  origImg.src = S.editCanvas.toDataURL();
+}
+
+function updateSourceDims() {
+  if (!S.editCanvas) return;
+  const w = srcW(), h = srcH();
+  S.aspect = w / h;
+  resW.value = w;
+  resH.value = h;
+  resPct.value = 100;
+  $('#origDims').textContent = `${w} x ${h}`;
+  if (S.img) updateUpscaleInfo();
+}
+
+/* ===== Edit: Crop ===== */
+function startCrop() {
+  if (!S.editCanvas) return;
+  S.cropActive = true;
+
+  const cropCanvas = $('#cropCanvas');
+  const imgEl = origImg;
+  const wrapEl = imgEl.parentElement;
+  const wrapRect = wrapEl.getBoundingClientRect();
+  const imgRect = imgEl.getBoundingClientRect();
+
+  const offX = imgRect.left - wrapRect.left;
+  const offY = imgRect.top - wrapRect.top;
+  const dw = imgRect.width;
+  const dh = imgRect.height;
+
+  cropCanvas.width = Math.round(dw);
+  cropCanvas.height = Math.round(dh);
+  cropCanvas.style.left = offX + 'px';
+  cropCanvas.style.top = offY + 'px';
+  cropCanvas.style.width = dw + 'px';
+  cropCanvas.style.height = dh + 'px';
+  cropCanvas.style.display = 'block';
+
+  S.cropScaleX = S.editCanvas.width / dw;
+  S.cropScaleY = S.editCanvas.height / dh;
+
+  S.cropRect = { x: 0, y: 0, w: cropCanvas.width, h: cropCanvas.height };
+  if (S.cropAspect) constrainCropToAspect();
+  drawCropOverlay();
+
+  $('#startCropBtn').style.display = 'none';
+  $('#applyCropBtn').style.display = '';
+  $('#cancelCropBtn').style.display = '';
+
+  let dragging = false, startX = 0, startY = 0;
+
+  const getPos = (e) => {
+    const r = cropCanvas.getBoundingClientRect();
+    const cx = e.touches ? e.touches[0].clientX : e.clientX;
+    const cy = e.touches ? e.touches[0].clientY : e.clientY;
+    return { x: Math.max(0, Math.min(cropCanvas.width, cx - r.left)), y: Math.max(0, Math.min(cropCanvas.height, cy - r.top)) };
+  };
+
+  const onDown = (e) => {
+    e.preventDefault();
+    const p = getPos(e);
+    dragging = true;
+    startX = p.x;
+    startY = p.y;
+    S.cropRect = { x: p.x, y: p.y, w: 0, h: 0 };
+  };
+
+  const onMove = (e) => {
+    if (!dragging) return;
+    e.preventDefault();
+    const p = getPos(e);
+    let x = Math.min(startX, p.x), y = Math.min(startY, p.y);
+    let w = Math.abs(p.x - startX), h = Math.abs(p.y - startY);
+
+    if (S.cropAspect) {
+      const desiredH = w / S.cropAspect;
+      if (desiredH <= cropCanvas.height) { h = desiredH; } else { h = cropCanvas.height; w = h * S.cropAspect; }
+      if (p.y < startY) y = startY - h;
+      if (p.x < startX) x = startX - w;
+    }
+
+    x = Math.max(0, x); y = Math.max(0, y);
+    w = Math.min(w, cropCanvas.width - x);
+    h = Math.min(h, cropCanvas.height - y);
+    S.cropRect = { x, y, w, h };
+    drawCropOverlay();
+  };
+
+  const onUp = () => { dragging = false; };
+
+  cropCanvas._onDown = onDown;
+  cropCanvas._onMove = onMove;
+  cropCanvas._onUp = onUp;
+  cropCanvas.addEventListener('mousedown', onDown);
+  cropCanvas.addEventListener('mousemove', onMove);
+  cropCanvas.addEventListener('mouseup', onUp);
+  cropCanvas.addEventListener('mouseleave', onUp);
+  cropCanvas.addEventListener('touchstart', onDown, { passive: false });
+  cropCanvas.addEventListener('touchmove', onMove, { passive: false });
+  cropCanvas.addEventListener('touchend', onUp);
+}
+
+function drawCropOverlay() {
+  const cropCanvas = $('#cropCanvas');
+  const cctx = cropCanvas.getContext('2d');
+  const { x, y, w, h } = S.cropRect;
+
+  cctx.clearRect(0, 0, cropCanvas.width, cropCanvas.height);
+  cctx.fillStyle = 'rgba(0,0,0,0.5)';
+  cctx.fillRect(0, 0, cropCanvas.width, cropCanvas.height);
+
+  if (w > 0 && h > 0) {
+    cctx.clearRect(x, y, w, h);
+    cctx.strokeStyle = '#6d5cff';
+    cctx.lineWidth = 2;
+    cctx.strokeRect(x, y, w, h);
+
+    // Rule of thirds
+    cctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    cctx.lineWidth = 1;
+    for (let i = 1; i < 3; i++) {
+      cctx.beginPath(); cctx.moveTo(x + w * i / 3, y); cctx.lineTo(x + w * i / 3, y + h); cctx.stroke();
+      cctx.beginPath(); cctx.moveTo(x, y + h * i / 3); cctx.lineTo(x + w, y + h * i / 3); cctx.stroke();
+    }
+
+    // Corner handles
+    const hs = 8;
+    cctx.fillStyle = '#fff'; cctx.strokeStyle = '#6d5cff'; cctx.lineWidth = 2;
+    [[x, y], [x + w, y], [x, y + h], [x + w, y + h]].forEach(([cx, cy]) => {
+      cctx.fillRect(cx - hs / 2, cy - hs / 2, hs, hs);
+      cctx.strokeRect(cx - hs / 2, cy - hs / 2, hs, hs);
+    });
+
+    // Size label
+    const cw = Math.round(w * S.cropScaleX), ch = Math.round(h * S.cropScaleY);
+    const text = `${cw} \u00D7 ${ch}`;
+    cctx.font = '12px sans-serif';
+    const tm = cctx.measureText(text);
+    const lx = x + (w - tm.width - 12) / 2, ly = y + h - 24;
+    if (ly > y + 10) {
+      cctx.fillStyle = 'rgba(109,92,255,0.85)';
+      cctx.fillRect(lx, ly, tm.width + 12, 20);
+      cctx.fillStyle = '#fff';
+      cctx.fillText(text, lx + 6, ly + 14);
+    }
+  }
+}
+
+function constrainCropToAspect() {
+  if (!S.cropAspect || !S.cropRect) return;
+  const cropCanvas = $('#cropCanvas');
+  let { w, h } = S.cropRect;
+  const desiredH = w / S.cropAspect;
+  if (desiredH <= cropCanvas.height) { h = desiredH; } else { h = cropCanvas.height; w = h * S.cropAspect; }
+  S.cropRect.w = w;
+  S.cropRect.h = h;
+  drawCropOverlay();
+}
+
+function applyCrop() {
+  if (!S.editCanvas || !S.cropRect) return;
+  const { x, y, w, h } = S.cropRect;
+  if (w < 2 || h < 2) { toast('Select a crop area first', 'warning'); return; }
+
+  const cx = Math.round(x * S.cropScaleX), cy = Math.round(y * S.cropScaleY);
+  const cw = Math.round(w * S.cropScaleX), ch = Math.round(h * S.cropScaleY);
+
+  const cropped = S.editCtx.getImageData(cx, cy, cw, ch);
+  S.editCanvas.width = cw;
+  S.editCanvas.height = ch;
+  S.editCtx.putImageData(cropped, 0, 0);
+
+  pushHistory('Crop');
+  cancelCrop();
+  updateEditPreview();
+  updateSourceDims();
+  toast(`Cropped to ${cw} \u00D7 ${ch}`, 'success');
+}
+
+function cancelCrop() {
+  S.cropActive = false;
+  const cropCanvas = $('#cropCanvas');
+  cropCanvas.style.display = 'none';
+
+  if (cropCanvas._onDown) {
+    cropCanvas.removeEventListener('mousedown', cropCanvas._onDown);
+    cropCanvas.removeEventListener('mousemove', cropCanvas._onMove);
+    cropCanvas.removeEventListener('mouseup', cropCanvas._onUp);
+    cropCanvas.removeEventListener('mouseleave', cropCanvas._onUp);
+    cropCanvas.removeEventListener('touchstart', cropCanvas._onDown);
+    cropCanvas.removeEventListener('touchmove', cropCanvas._onMove);
+    cropCanvas.removeEventListener('touchend', cropCanvas._onUp);
+    cropCanvas._onDown = null;
+  }
+
+  $('#startCropBtn').style.display = '';
+  $('#applyCropBtn').style.display = 'none';
+  $('#cancelCropBtn').style.display = 'none';
+}
+
+/* ===== Edit: Rotate & Flip ===== */
+function rotate90(dir) {
+  if (!S.editCanvas) return;
+  const w = S.editCanvas.width, h = S.editCanvas.height;
+  const tmp = document.createElement('canvas');
+  tmp.width = h; tmp.height = w;
+  const tc = tmp.getContext('2d');
+  tc.translate(h / 2, w / 2);
+  tc.rotate(dir * Math.PI / 2);
+  tc.drawImage(S.editCanvas, -w / 2, -h / 2);
+  S.editCanvas.width = h; S.editCanvas.height = w;
+  S.editCtx.drawImage(tmp, 0, 0);
+  pushHistory(`Rotate ${dir > 0 ? '90\u00B0 CW' : '90\u00B0 CCW'}`);
+  updateEditPreview();
+  updateSourceDims();
+}
+
+function rotate180() {
+  if (!S.editCanvas) return;
+  const w = S.editCanvas.width, h = S.editCanvas.height;
+  const tmp = document.createElement('canvas');
+  tmp.width = w; tmp.height = h;
+  const tc = tmp.getContext('2d');
+  tc.translate(w / 2, h / 2);
+  tc.rotate(Math.PI);
+  tc.drawImage(S.editCanvas, -w / 2, -h / 2);
+  S.editCtx.clearRect(0, 0, w, h);
+  S.editCtx.drawImage(tmp, 0, 0);
+  pushHistory('Rotate 180\u00B0');
+  updateEditPreview();
+}
+
+function flipH() {
+  if (!S.editCanvas) return;
+  const w = S.editCanvas.width, h = S.editCanvas.height;
+  const tmp = document.createElement('canvas');
+  tmp.width = w; tmp.height = h;
+  const tc = tmp.getContext('2d');
+  tc.translate(w, 0); tc.scale(-1, 1);
+  tc.drawImage(S.editCanvas, 0, 0);
+  S.editCtx.clearRect(0, 0, w, h);
+  S.editCtx.drawImage(tmp, 0, 0);
+  pushHistory('Flip Horizontal');
+  updateEditPreview();
+}
+
+function flipV() {
+  if (!S.editCanvas) return;
+  const w = S.editCanvas.width, h = S.editCanvas.height;
+  const tmp = document.createElement('canvas');
+  tmp.width = w; tmp.height = h;
+  const tc = tmp.getContext('2d');
+  tc.translate(0, h); tc.scale(1, -1);
+  tc.drawImage(S.editCanvas, 0, 0);
+  S.editCtx.clearRect(0, 0, w, h);
+  S.editCtx.drawImage(tmp, 0, 0);
+  pushHistory('Flip Vertical');
+  updateEditPreview();
+}
+
+function applyFreeRotate() {
+  if (!S.editCanvas) return;
+  const deg = parseInt($('#freeRotate').value) || 0;
+  if (deg === 0) return;
+  const rad = deg * Math.PI / 180;
+  const w = S.editCanvas.width, h = S.editCanvas.height;
+  const cos = Math.abs(Math.cos(rad)), sin = Math.abs(Math.sin(rad));
+  const nw = Math.ceil(w * cos + h * sin), nh = Math.ceil(w * sin + h * cos);
+  const tmp = document.createElement('canvas');
+  tmp.width = nw; tmp.height = nh;
+  const tc = tmp.getContext('2d');
+  tc.translate(nw / 2, nh / 2);
+  tc.rotate(rad);
+  tc.drawImage(S.editCanvas, -w / 2, -h / 2);
+  S.editCanvas.width = nw; S.editCanvas.height = nh;
+  S.editCtx.drawImage(tmp, 0, 0);
+  pushHistory(`Rotate ${deg}\u00B0`);
+  updateEditPreview();
+  updateSourceDims();
+  $('#freeRotate').value = 0;
+  $('#freeRotateVal').textContent = '0\u00B0';
+}
+
+/* ===== Edit: Adjustments ===== */
+async function applyAdjustments() {
+  if (!S.editCanvas) return;
+  const sliders = {};
+  $$('.adj-row input[type="range"]').forEach(s => { sliders[s.dataset.adj] = parseInt(s.value); });
+  if (Object.values(sliders).every(v => v === 0)) { toast('Adjust sliders first', 'info'); return; }
+
+  const w = S.editCanvas.width, h = S.editCanvas.height;
+  const imgData = S.editCtx.getImageData(0, 0, w, h);
+  const brightness = sliders.brightness || 0;
+  const contrast = sliders.contrast || 0;
+  const saturation = sliders.saturation || 0;
+  const sharpnessVal = sliders.sharpness || 0;
+  const hue = sliders.hue || 0;
+  const temperature = sliders.temperature || 0;
+
+  // Use worker for large images (>500K pixels), main thread for small
+  const pixels = w * h;
+  if (pixels > 500000) {
+    try {
+      const worker = createInlineWorker(adjustWorkerFn);
+      const msg = { pixels: imgData.data.buffer, width: w, height: h, brightness, contrast, saturation, hue, temperature, _onProgress: () => {} };
+      const resultBuf = await workerPromise(worker, msg, [imgData.data.buffer]);
+      const newData = new ImageData(new Uint8ClampedArray(resultBuf), w, h);
+      S.editCtx.putImageData(newData, 0, 0);
+    } catch (err) {
+      console.warn('Adjust worker failed, using main thread:', err);
+      applyAdjustmentsSync(imgData, brightness, contrast, saturation, hue, temperature);
+      S.editCtx.putImageData(imgData, 0, 0);
+    }
+  } else {
+    applyAdjustmentsSync(imgData, brightness, contrast, saturation, hue, temperature);
+    S.editCtx.putImageData(imgData, 0, 0);
+  }
+
+  if (sharpnessVal > 0) {
+    const sharpData = S.editCtx.getImageData(0, 0, w, h);
+    sharpen(sharpData, sharpnessVal / 100);
+    S.editCtx.putImageData(sharpData, 0, 0);
+  }
+
+  const labels = [];
+  if (brightness) labels.push(`Brt:${brightness}`);
+  if (contrast) labels.push(`Con:${contrast}`);
+  if (saturation) labels.push(`Sat:${saturation}`);
+  if (sharpnessVal) labels.push(`Shp:${sharpnessVal}`);
+  if (hue) labels.push(`Hue:${hue}`);
+  if (temperature) labels.push(`Tmp:${temperature}`);
+  pushHistory('Adjust: ' + labels.join(' '));
+  updateEditPreview();
+  resetAdjustments();
+  toast('Adjustments applied', 'success');
+}
+
+function applyAdjustmentsSync(imgData, brightness, contrast, saturation, hue, temperature) {
+  const d = imgData.data;
+  const cFactor = (259 * (contrast + 255)) / (255 * (259 - contrast));
+  for (let i = 0; i < d.length; i += 4) {
+    let r = d[i], g = d[i+1], b = d[i+2];
+    r += brightness * 2.55; g += brightness * 2.55; b += brightness * 2.55;
+    r = cFactor * (r - 128) + 128; g = cFactor * (g - 128) + 128; b = cFactor * (b - 128) + 128;
+    r += temperature * 1.5; b -= temperature * 1.5;
+    if (saturation !== 0 || hue !== 0) {
+      let [h2, s2, l] = rgbToHsl(Math.max(0,Math.min(255,r)), Math.max(0,Math.min(255,g)), Math.max(0,Math.min(255,b)));
+      if (hue !== 0) h2 = (h2 + hue/360 + 1) % 1;
+      if (saturation !== 0) s2 = Math.max(0, Math.min(1, s2 + saturation/100));
+      [r, g, b] = hslToRgb(h2, s2, l);
+    }
+    d[i] = Math.max(0,Math.min(255,Math.round(r)));
+    d[i+1] = Math.max(0,Math.min(255,Math.round(g)));
+    d[i+2] = Math.max(0,Math.min(255,Math.round(b)));
+  }
+}
+
+function resetAdjustments() {
+  $$('.adj-row input[type="range"]').forEach(s => { s.value = 0; s.nextElementSibling.textContent = '0'; });
+}
+
+function rgbToHsl(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h, s, l = (max + min) / 2;
+  if (max === min) { h = s = 0; }
+  else {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
+      case g: h = ((b - r) / d + 2) / 6; break;
+      case b: h = ((r - g) / d + 4) / 6; break;
+    }
+  }
+  return [h, s, l];
+}
+
+function hslToRgb(h, s, l) {
+  if (s === 0) { const v = Math.round(l * 255); return [v, v, v]; }
+  const hue2rgb = (p, q, t) => {
+    if (t < 0) t += 1; if (t > 1) t -= 1;
+    if (t < 1 / 6) return p + (q - p) * 6 * t;
+    if (t < 1 / 2) return q;
+    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+    return p;
+  };
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+  const p = 2 * l - q;
+  return [Math.round(hue2rgb(p, q, h + 1 / 3) * 255), Math.round(hue2rgb(p, q, h) * 255), Math.round(hue2rgb(p, q, h - 1 / 3) * 255)];
+}
+
+/* ===== Edit: Filters ===== */
+function applyFilter(name) {
+  if (!S.editCanvas) return;
+  const w = S.editCanvas.width, h = S.editCanvas.height;
+  const imgData = S.editCtx.getImageData(0, 0, w, h);
+  const d = imgData.data;
+
+  switch (name) {
+    case 'grayscale':
+      for (let i = 0; i < d.length; i += 4) { const avg = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]; d[i] = d[i + 1] = d[i + 2] = avg; }
+      break;
+    case 'sepia':
+      for (let i = 0; i < d.length; i += 4) { const r = d[i], g = d[i + 1], b = d[i + 2]; d[i] = Math.min(255, r * .393 + g * .769 + b * .189); d[i + 1] = Math.min(255, r * .349 + g * .686 + b * .168); d[i + 2] = Math.min(255, r * .272 + g * .534 + b * .131); }
+      break;
+    case 'invert':
+      for (let i = 0; i < d.length; i += 4) { d[i] = 255 - d[i]; d[i + 1] = 255 - d[i + 1]; d[i + 2] = 255 - d[i + 2]; }
+      break;
+    case 'vintage':
+      for (let i = 0; i < d.length; i += 4) { d[i] = Math.min(255, d[i] * 1.1 + 20); d[i + 1] = Math.min(255, d[i + 1] * .9 + 10); d[i + 2] = Math.min(255, d[i + 2] * .7); }
+      break;
+    case 'warm':
+      for (let i = 0; i < d.length; i += 4) { d[i] = Math.min(255, d[i] + 20); d[i + 1] = Math.min(255, d[i + 1] + 10); d[i + 2] = Math.max(0, d[i + 2] - 15); }
+      break;
+    case 'cool':
+      for (let i = 0; i < d.length; i += 4) { d[i] = Math.max(0, d[i] - 15); d[i + 1] = Math.min(255, d[i + 1] + 5); d[i + 2] = Math.min(255, d[i + 2] + 25); }
+      break;
+    case 'highcontrast':
+      for (let i = 0; i < d.length; i += 4) { for (let c = 0; c < 3; c++) d[i + c] = d[i + c] > 128 ? Math.min(255, d[i + c] * 1.3) : Math.max(0, d[i + c] * .7); }
+      break;
+  }
+
+  S.editCtx.putImageData(imgData, 0, 0);
+  pushHistory('Filter: ' + name.charAt(0).toUpperCase() + name.slice(1));
+  updateEditPreview();
+  $$('.filter-opt').forEach(f => { f.classList.toggle('applied', f.dataset.filter === name); setTimeout(() => f.classList.remove('applied'), 1500); });
+  toast(`Applied ${name} filter`, 'success');
+}
+
+/* ===== Before/After Comparison ===== */
+function toggleCompare() {
+  S.compareActive = !S.compareActive;
+  const btn = $('#compareBtn');
+  const canvas = $('#compareCanvas');
+  const divider = $('#compareDivider');
+
+  btn.classList.toggle('active', S.compareActive);
+
+  if (S.compareActive && S.outputUrl) {
+    canvas.style.display = 'block';
+    divider.style.display = 'block';
+    outImg.style.display = 'none';
+
+    const wrap = outputWrap;
+    const rect = wrap.getBoundingClientRect();
+    canvas.width = Math.round(rect.width);
+    canvas.height = Math.round(rect.height);
+    canvas.style.width = rect.width + 'px';
+    canvas.style.height = rect.height + 'px';
+
+    S.compareDividerPos = 0.5;
+    divider.style.left = '50%';
+    drawCompare();
+
+    let dragging = false;
+    const onDown = (e) => { e.preventDefault(); dragging = true; };
+    const onMove = (e) => {
+      if (!dragging) return;
+      const r = canvas.getBoundingClientRect();
+      const cx = (e.touches ? e.touches[0].clientX : e.clientX) - r.left;
+      S.compareDividerPos = Math.max(0.05, Math.min(0.95, cx / r.width));
+      divider.style.left = (S.compareDividerPos * 100) + '%';
+      drawCompare();
+    };
+    const onUp = () => { dragging = false; };
+
+    divider._onDown = onDown;
+    divider._onMove = onMove;
+    divider._onUp = onUp;
+    divider.addEventListener('mousedown', onDown);
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    divider.addEventListener('touchstart', onDown, { passive: false });
+    document.addEventListener('touchmove', onMove, { passive: false });
+    document.addEventListener('touchend', onUp);
+  } else {
+    canvas.style.display = 'none';
+    divider.style.display = 'none';
+    if (S.outputUrl) outImg.style.display = '';
+
+    if (divider._onDown) {
+      divider.removeEventListener('mousedown', divider._onDown);
+      document.removeEventListener('mousemove', divider._onMove);
+      document.removeEventListener('mouseup', divider._onUp);
+      divider.removeEventListener('touchstart', divider._onDown);
+      document.removeEventListener('touchmove', divider._onMove);
+      document.removeEventListener('touchend', divider._onUp);
+      divider._onDown = null;
+    }
+  }
+}
+
+function drawCompare() {
+  const canvas = $('#compareCanvas');
+  const cctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  const split = Math.round(w * S.compareDividerPos);
+
+  cctx.clearRect(0, 0, w, h);
+
+  // Before (original) on left
+  if (S.img) {
+    cctx.save(); cctx.beginPath(); cctx.rect(0, 0, split, h); cctx.clip();
+    cctx.drawImage(S.img, 0, 0, w, h);
+    cctx.restore();
+  }
+
+  // After (output) on right
+  if (outImg.naturalWidth) {
+    cctx.save(); cctx.beginPath(); cctx.rect(split, 0, w - split, h); cctx.clip();
+    cctx.drawImage(outImg, 0, 0, w, h);
+    cctx.restore();
+  }
+
+  // Labels
+  cctx.font = '10px sans-serif';
+  cctx.fillStyle = 'rgba(0,0,0,0.6)';
+  cctx.fillRect(4, h - 18, 40, 14);
+  cctx.fillRect(w - 40, h - 18, 36, 14);
+  cctx.fillStyle = '#fff';
+  cctx.fillText('Before', 6, h - 7);
+  cctx.fillText('After', w - 38, h - 7);
+}
+
+/* ===== Batch Processing ===== */
+function handleBatchFiles(files) {
+  S.batchFiles = files.filter(f => f.type.startsWith('image/'));
+  if (S.batchFiles.length === 0) return;
+  S.batchResults = [];
+
+  loadFile(S.batchFiles[0]);
+
+  const panel = $('#batchPanel');
+  panel.classList.add('visible');
+  $('#batchInfo').textContent = `${S.batchFiles.length} files`;
+
+  const list = $('#batchList');
+  list.innerHTML = '';
+  S.batchFiles.forEach((f, i) => {
+    const img = document.createElement('img');
+    img.className = 'batch-thumb';
+    img.title = f.name;
+    img.src = URL.createObjectURL(f);
+    img.dataset.idx = i;
+    img.onclick = () => loadFile(S.batchFiles[i]);
+    list.appendChild(img);
+  });
+
+  $('#batchDownloadBtn').disabled = true;
+}
+
+async function batchProcess() {
+  if (S.batchFiles.length === 0 || S.processing) return;
+  S.processing = true;
+  setLoading(true);
+  S.batchResults = [];
+
+  const progressWrap = $('#batchProgress');
+  const progressBar = $('#batchProgressBar');
+  progressWrap.classList.add('visible');
+
+  const thumbs = $$('.batch-thumb');
+
+  for (let i = 0; i < S.batchFiles.length; i++) {
+    const file = S.batchFiles[i];
+    thumbs[i]?.classList.add('processing');
+
+    try {
+      const url = URL.createObjectURL(file);
+      const img = await new Promise((resolve, reject) => {
+        const im = new Image();
+        im.onload = () => resolve(im);
+        im.onerror = reject;
+        im.src = url;
+      });
+
+      const origState = { img: S.img, origW: S.origW, origH: S.origH, aspect: S.aspect, editCanvas: S.editCanvas, editCtx: S.editCtx };
+      S.img = img;
+      S.origW = img.naturalWidth;
+      S.origH = img.naturalHeight;
+      S.aspect = S.origW / S.origH;
+      S.editCanvas = document.createElement('canvas');
+      S.editCanvas.width = S.origW;
+      S.editCanvas.height = S.origH;
+      S.editCtx = S.editCanvas.getContext('2d');
+      S.editCtx.drawImage(img, 0, 0);
+
+      let blob;
+      switch (S.tab) {
+        case 'resize': blob = await doResize(); break;
+        case 'convert': blob = await doConvert(); break;
+        case 'upscale': blob = await doUpscale(); break;
+        case 'edit': blob = await canvasToBlob(S.editCanvas, 'image/png', 1); break;
+      }
+
+      Object.assign(S, origState);
+
+      if (blob) {
+        S.batchResults.push({ name: file.name, blob });
+        thumbs[i]?.classList.remove('processing');
+        thumbs[i]?.classList.add('done');
+      }
+
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error(`Batch error on ${file.name}:`, err);
+      thumbs[i]?.classList.remove('processing');
+      thumbs[i]?.classList.add('error');
+    }
+
+    progressBar.style.width = Math.round(((i + 1) / S.batchFiles.length) * 100) + '%';
+  }
+
+  progressWrap.classList.remove('visible');
+  S.processing = false;
+  setLoading(false);
+
+  if (S.batchResults.length > 0) {
+    $('#batchDownloadBtn').disabled = false;
+    toast(`Processed ${S.batchResults.length}/${S.batchFiles.length} files`, 'success');
+  }
+}
+
+async function batchDownload() {
+  if (S.batchResults.length === 0) return;
+  const EXT_MAP = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/avif': 'avif', 'image/bmp': 'bmp', 'image/gif': 'gif', 'image/tiff': 'tiff', 'image/x-icon': 'ico', 'image/svg+xml': 'svg' };
+
+  if (S.batchResults.length === 1) {
+    const { name, blob } = S.batchResults[0];
+    const ext = EXT_MAP[blob.type] || 'png';
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${name.replace(/\.[^.]+$/, '')}_processed.${ext}`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    return;
+  }
+
+  toast('Creating .zip archive...', 'info');
+  try {
+    const JSZip = await loadJSZip();
+    const zip = new JSZip();
+    S.batchResults.forEach(({ name, blob }) => {
+      const ext = EXT_MAP[blob.type] || 'png';
+      zip.file(`${name.replace(/\.[^.]+$/, '')}_processed.${ext}`, blob);
+    });
+    const zipBlob = await zip.generateAsync({ type: 'blob' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(zipBlob);
+    a.download = 'batch_output.zip';
+    a.click();
+    URL.revokeObjectURL(a.href);
+    toast(`Downloaded ${S.batchResults.length} files as .zip`, 'success');
+  } catch (err) {
+    toast('Failed to create .zip: ' + err.message, 'error');
+  }
+}
+
+function loadJSZip() {
+  return new Promise((resolve, reject) => {
+    if (window.JSZip) return resolve(window.JSZip);
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/jszip@3/dist/jszip.min.js';
+    script.onload = () => resolve(window.JSZip);
+    script.onerror = () => reject(new Error('Failed to load JSZip'));
+    document.head.appendChild(script);
+  });
+}
+
+/* ===== EXIF Metadata Parser ===== */
+function parseExif(buffer) {
+  const view = new DataView(buffer);
+  if (view.getUint16(0) !== 0xFFD8) return null;
+
+  let offset = 2;
+  while (offset < view.byteLength - 4) {
+    const marker = view.getUint16(offset);
+    if (marker === 0xFFE1) {
+      if (view.getUint32(offset + 4) === 0x45786966 && view.getUint16(offset + 8) === 0x0000) {
+        const exif = {};
+        return parseTiffHeader(view, offset + 10, exif);
+      }
+    }
+    if ((marker & 0xFF00) !== 0xFF00) break;
+    offset += 2 + view.getUint16(offset + 2);
+  }
+  return null;
+}
+
+function parseTiffHeader(view, tiffStart, exif) {
+  const le = view.getUint16(tiffStart) === 0x4949;
+  const get16 = (off) => view.getUint16(tiffStart + off, le);
+  const get32 = (off) => view.getUint32(tiffStart + off, le);
+  if (get16(2) !== 42) return null;
+
+  readIFD(view, tiffStart, get32(4), exif, le);
+  if (exif._exifIFD) { readIFD(view, tiffStart, exif._exifIFD, exif, le); delete exif._exifIFD; }
+  if (exif._gpsIFD) {
+    const gps = {};
+    readIFD(view, tiffStart, exif._gpsIFD, gps, le);
+    if (gps.GPSLatitude && gps.GPSLongitude) exif.GPS = `${gps.GPSLatitudeRef || 'N'} ${gps.GPSLatitude}, ${gps.GPSLongitudeRef || 'E'} ${gps.GPSLongitude}`;
+    delete exif._gpsIFD;
+  }
+  return Object.keys(exif).length > 0 ? exif : null;
+}
+
+function readIFD(view, tiffStart, ifdOff, exif, le) {
+  const get16 = (off) => view.getUint16(tiffStart + off, le);
+  const get32 = (off) => view.getUint32(tiffStart + off, le);
+  const TAGS = { 0x010F: 'Make', 0x0110: 'Model', 0x0112: 'Orientation', 0x0131: 'Software', 0x0132: 'DateTime', 0x829A: 'ExposureTime', 0x829D: 'FNumber', 0x8827: 'ISO', 0x9003: 'DateTaken', 0x920A: 'FocalLength', 0xA405: 'FocalLength35mm', 0xA001: 'ColorSpace', 0xA002: 'Width', 0xA003: 'Height' };
+  try {
+    const count = get16(ifdOff);
+    for (let i = 0; i < count; i++) {
+      const e = ifdOff + 2 + i * 12;
+      const tag = get16(e), type = get16(e + 2), cnt = get32(e + 4), vo = e + 8;
+      let value;
+      if (type === 2) {
+        const so = cnt > 4 ? get32(vo) : vo;
+        const bytes = [];
+        for (let j = 0; j < cnt - 1 && tiffStart + so + j < view.byteLength; j++) bytes.push(view.getUint8(tiffStart + so + j));
+        value = String.fromCharCode(...bytes);
+      } else if (type === 3) { value = get16(vo); }
+      else if (type === 4) { value = get32(vo); }
+      else if (type === 5) { const ro = get32(vo); value = (get32(ro + 4) ? (get32(ro) / get32(ro + 4)).toFixed(2) : get32(ro)); }
+      else continue;
+      if (tag === 0x8769) { exif._exifIFD = value; continue; }
+      if (tag === 0x8825) { exif._gpsIFD = value; continue; }
+      if (TAGS[tag]) {
+        if (tag === 0x829A) { const v = parseFloat(value); exif[TAGS[tag]] = v < 1 ? `1/${Math.round(1/v)}s` : `${v}s`; }
+        else if (tag === 0x829D) exif[TAGS[tag]] = `f/${value}`;
+        else if (tag === 0x920A || tag === 0xA405) exif[TAGS[tag]] = `${value}mm`;
+        else exif[TAGS[tag]] = value;
+      }
+    }
+  } catch (e) { /* malformed EXIF */ }
+}
+
+function displayExif(exif) {
+  const section = $('#exifSection');
+  const grid = $('#exifGrid');
+  if (!exif || Object.keys(exif).length === 0) { section.style.display = 'none'; return; }
+  section.style.display = '';
+  grid.innerHTML = '';
+  for (const [key, val] of Object.entries(exif)) grid.innerHTML += `<dt>${key}</dt><dd>${val}</dd>`;
+}
+
+/* ===== Background Removal (U2-Net) ===== */
+const BG_REMOVE_CONFIG = {
+  modelUrl: 'https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2netp.onnx',
+  fallbackUrl: 'https://huggingface.co/chwshuang/Stable_diffusion_remove_background_model/resolve/main/u2netp.onnx',
+  inputSize: 320,
+  mean: [0.485, 0.456, 0.406],
+  std: [0.229, 0.224, 0.225],
+};
+
+async function doBackgroundRemoval() {
+  if (!S.editCanvas) { toast('Load an image first', 'warning'); return; }
+  if (S.processing) return;
+  S.processing = true;
+
+  const statusEl = $('#bgRemoveStatus');
+  const progressWrap = $('#bgRemoveProgress');
+  const progressBar = $('#bgRemoveProgressBar');
+
+  try {
+    if (!S.bgRemoveSession) {
+      if (typeof ort === 'undefined') { toast('ONNX Runtime not loaded', 'error'); S.processing = false; return; }
+
+      statusEl.className = 'ai-status loading';
+      statusEl.querySelector('span').textContent = 'Loading U2-Net model...';
+      progressWrap.classList.add('visible');
+      progressBar.style.width = '0%';
+
+      const cacheKey = 'model_u2netp.onnx';
+      let modelBuffer;
+      try {
+        const cached = await getCachedModel(cacheKey);
+        if (cached) { modelBuffer = cached; progressBar.style.width = '100%'; toast('U2-Net loaded from cache', 'info'); }
+      } catch (e) {}
+
+      if (!modelBuffer) {
+        statusEl.querySelector('span').textContent = 'Downloading U2-Net model...';
+        let resp = await fetch(BG_REMOVE_CONFIG.modelUrl);
+        if (!resp.ok && BG_REMOVE_CONFIG.fallbackUrl) {
+          toast('Primary URL failed, trying fallback...', 'warning');
+          resp = await fetch(BG_REMOVE_CONFIG.fallbackUrl);
+        }
+        if (!resp.ok) throw new Error(`Download failed: ${resp.status}`);
+        const total = parseInt(resp.headers.get('Content-Length') || '0');
+        if (resp.body && total) {
+          const reader = resp.body.getReader();
+          const chunks = []; let received = 0;
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            chunks.push(value); received += value.length;
+            const pct = Math.round((received / total) * 100);
+            progressBar.style.width = pct + '%';
+            statusEl.querySelector('span').textContent = `Downloading U2-Net... ${pct}% (${fmtBytes(received)} / ${fmtBytes(total)})`;
+          }
+          const buf = new Uint8Array(received); let off = 0;
+          for (const c of chunks) { buf.set(c, off); off += c.length; }
+          modelBuffer = buf.buffer;
+        } else { modelBuffer = await resp.arrayBuffer(); }
+        try { await cacheModel(cacheKey, modelBuffer); } catch (e) {}
+      }
+
+      let eps = ['wasm'];
+      try { if (navigator.gpu && await navigator.gpu.requestAdapter()) eps = ['webgpu', 'wasm']; } catch (e) {}
+      S.bgRemoveSession = await ort.InferenceSession.create(modelBuffer, { executionProviders: eps, graphOptimizationLevel: 'all' });
+
+      statusEl.className = 'ai-status ready';
+      statusEl.querySelector('span').textContent = 'U2-Net ready';
+      progressWrap.classList.remove('visible');
+    }
+
+    toast('Removing background...', 'info');
+    const sw = S.editCanvas.width, sh = S.editCanvas.height;
+    const sz = BG_REMOVE_CONFIG.inputSize;
+
+    // Resize to model input size and normalize (ImageNet mean/std)
+    const tmpCanvas = document.createElement('canvas');
+    tmpCanvas.width = sz; tmpCanvas.height = sz;
+    tmpCanvas.getContext('2d').drawImage(S.editCanvas, 0, 0, sz, sz);
+    const px = tmpCanvas.getContext('2d').getImageData(0, 0, sz, sz).data;
+
+    const input = new Float32Array(3 * sz * sz);
+    const { mean, std } = BG_REMOVE_CONFIG;
+    for (let i = 0; i < sz * sz; i++) {
+      input[i] = (px[i * 4] / 255 - mean[0]) / std[0];
+      input[sz * sz + i] = (px[i * 4 + 1] / 255 - mean[1]) / std[1];
+      input[2 * sz * sz + i] = (px[i * 4 + 2] / 255 - mean[2]) / std[2];
+    }
+
+    const inputName = S.bgRemoveSession.inputNames[0];
+    const feeds = {};
+    feeds[inputName] = new ort.Tensor('float32', input, [1, 3, sz, sz]);
+    const results = await S.bgRemoveSession.run(feeds);
+    const mask = results[S.bgRemoveSession.outputNames[0]].data;
+
+    // Normalize mask to [0, 1]
+    let mMin = Infinity, mMax = -Infinity;
+    for (let i = 0; i < mask.length; i++) { if (mask[i] < mMin) mMin = mask[i]; if (mask[i] > mMax) mMax = mask[i]; }
+    const mRange = mMax - mMin || 1;
+
+    // Create mask image at model resolution
+    const maskCanvas = document.createElement('canvas');
+    maskCanvas.width = sz; maskCanvas.height = sz;
+    const mc = maskCanvas.getContext('2d');
+    const maskImg = mc.createImageData(sz, sz);
+    for (let i = 0; i < sz * sz; i++) {
+      const v = Math.round(((mask[i] - mMin) / mRange) * 255);
+      maskImg.data[i * 4] = maskImg.data[i * 4 + 1] = maskImg.data[i * 4 + 2] = 255;
+      maskImg.data[i * 4 + 3] = v;
+    }
+    mc.putImageData(maskImg, 0, 0);
+
+    // Scale mask to original size and apply as alpha
+    const fullMask = document.createElement('canvas');
+    fullMask.width = sw; fullMask.height = sh;
+    const fc = fullMask.getContext('2d');
+    fc.imageSmoothingEnabled = true;
+    fc.imageSmoothingQuality = 'high';
+    fc.drawImage(maskCanvas, 0, 0, sw, sh);
+    const fullMaskData = fc.getImageData(0, 0, sw, sh);
+
+    const editData = S.editCtx.getImageData(0, 0, sw, sh);
+    for (let i = 0; i < sw * sh; i++) editData.data[i * 4 + 3] = fullMaskData.data[i * 4 + 3];
+    S.editCtx.putImageData(editData, 0, 0);
+
+    pushHistory('Background Removal');
+    updateEditPreview();
+    toast('Background removed!', 'success');
+  } catch (err) {
+    console.error('BG removal failed:', err);
+    statusEl.className = 'ai-status error';
+    statusEl.querySelector('span').textContent = 'Failed: ' + err.message;
+    progressWrap.classList.remove('visible');
+    toast('Background removal failed: ' + err.message, 'error');
+  }
+
+  S.processing = false;
+}
+
+/* ===== Face Enhancement (bilateral + sharpen + contrast) ===== */
+async function doFaceEnhance() {
+  if (!S.editCanvas) { toast('Load an image first', 'warning'); return; }
+  if (S.processing) return;
+  S.processing = true;
+  toast('Enhancing faces...', 'info');
+
+  const strength = parseInt($('#faceStrength').value);
+  const w = S.editCanvas.width, h = S.editCanvas.height;
+  const imgData = S.editCtx.getImageData(0, 0, w, h);
+  const d = imgData.data;
+
+  // Step 1: Detect skin-tone regions (simple HSV-based)
+  const skinMask = new Uint8Array(w * h);
+  for (let i = 0; i < w * h; i++) {
+    const r = d[i*4], g = d[i*4+1], b = d[i*4+2];
+    // Skin detection in RGB: R>95, G>40, B>20, max-min>15, |R-G|>15, R>G, R>B
+    if (r > 95 && g > 40 && b > 20 && (Math.max(r,g,b) - Math.min(r,g,b)) > 15 && Math.abs(r-g) > 15 && r > g && r > b) {
+      skinMask[i] = 255;
+    }
+  }
+
+  // Step 2: Bilateral filter on skin regions (smooth skin, preserve edges)
+  const radius = strength + 1;
+  const sigmaSpace = radius * 2;
+  const sigmaColor = 20 + strength * 10;
+  const copy = new Uint8ClampedArray(d);
+
+  for (let y = radius; y < h - radius; y++) {
+    for (let x = radius; x < w - radius; x++) {
+      const idx = y * w + x;
+      if (!skinMask[idx]) continue; // only smooth skin areas
+
+      let rSum = 0, gSum = 0, bSum = 0, wSum = 0;
+      const ci = idx * 4;
+      const cr = copy[ci], cg = copy[ci+1], cb = copy[ci+2];
+
+      for (let dy = -radius; dy <= radius; dy++) {
+        for (let dx = -radius; dx <= radius; dx++) {
+          const nx = x + dx, ny = y + dy;
+          const ni = (ny * w + nx) * 4;
+          const spatialDist = dx*dx + dy*dy;
+          const colorDist = (copy[ni]-cr)**2 + (copy[ni+1]-cg)**2 + (copy[ni+2]-cb)**2;
+          const weight = Math.exp(-spatialDist / (2 * sigmaSpace * sigmaSpace) - colorDist / (2 * sigmaColor * sigmaColor));
+          rSum += copy[ni] * weight;
+          gSum += copy[ni+1] * weight;
+          bSum += copy[ni+2] * weight;
+          wSum += weight;
+        }
+      }
+      d[ci] = Math.round(rSum / wSum);
+      d[ci+1] = Math.round(gSum / wSum);
+      d[ci+2] = Math.round(bSum / wSum);
+    }
+    // Yield every 50 rows
+    if (y % 50 === 0) await new Promise(r => setTimeout(r, 0));
+  }
+
+  // Step 3: Sharpen + contrast boost (entire image, weighted by strength)
+  const sharpStrength = 0.2 + strength * 0.15;
+  S.editCtx.putImageData(imgData, 0, 0);
+  const sharpData = S.editCtx.getImageData(0, 0, w, h);
+  sharpen(sharpData, sharpStrength);
+
+  // Step 4: Mild contrast boost
+  const cFactor = 1 + strength * 0.04;
+  const sd = sharpData.data;
+  for (let i = 0; i < sd.length; i += 4) {
+    sd[i] = Math.max(0, Math.min(255, cFactor * (sd[i] - 128) + 128));
+    sd[i+1] = Math.max(0, Math.min(255, cFactor * (sd[i+1] - 128) + 128));
+    sd[i+2] = Math.max(0, Math.min(255, cFactor * (sd[i+2] - 128) + 128));
+  }
+
+  S.editCtx.putImageData(sharpData, 0, 0);
+  pushHistory('Face Enhance');
+  updateEditPreview();
+  toast('Face enhancement applied!', 'success');
+  S.processing = false;
+}
+
+/* ===== Image Denoising (bilateral filter with edge preservation) ===== */
+async function doDenoise() {
+  if (!S.editCanvas) { toast('Load an image first', 'warning'); return; }
+  if (S.processing) return;
+  S.processing = true;
+  toast('Denoising image...', 'info');
+
+  const strength = parseInt($('#denoiseStrength').value);
+  const w = S.editCanvas.width, h = S.editCanvas.height;
+  const imgData = S.editCtx.getImageData(0, 0, w, h);
+  const d = imgData.data;
+  const copy = new Uint8ClampedArray(d);
+
+  // Bilateral filter parameters scale with strength
+  const radius = Math.min(strength + 2, 6);
+  const sigmaSpace = radius * 1.5;
+  const sigmaColor = 15 + strength * 15; // Higher = more smoothing across similar colors
+
+  const spaceCoeff = -0.5 / (sigmaSpace * sigmaSpace);
+  const colorCoeff = -0.5 / (sigmaColor * sigmaColor);
+
+  // Pre-compute spatial weights
+  const spatialWeights = new Float32Array((2*radius+1) * (2*radius+1));
+  for (let dy = -radius; dy <= radius; dy++) {
+    for (let dx = -radius; dx <= radius; dx++) {
+      spatialWeights[(dy+radius)*(2*radius+1)+(dx+radius)] = Math.exp((dx*dx + dy*dy) * spaceCoeff);
+    }
+  }
+
+  for (let y = radius; y < h - radius; y++) {
+    for (let x = radius; x < w - radius; x++) {
+      const ci = (y * w + x) * 4;
+      const cr = copy[ci], cg = copy[ci+1], cb = copy[ci+2];
+      let rSum = 0, gSum = 0, bSum = 0, wSum = 0;
+
+      for (let dy = -radius; dy <= radius; dy++) {
+        for (let dx = -radius; dx <= radius; dx++) {
+          const ni = ((y+dy) * w + (x+dx)) * 4;
+          const dr = copy[ni] - cr, dg = copy[ni+1] - cg, db = copy[ni+2] - cb;
+          const colorDist = dr*dr + dg*dg + db*db;
+          const sw = spatialWeights[(dy+radius)*(2*radius+1)+(dx+radius)];
+          const weight = sw * Math.exp(colorDist * colorCoeff);
+          rSum += copy[ni] * weight;
+          gSum += copy[ni+1] * weight;
+          bSum += copy[ni+2] * weight;
+          wSum += weight;
+        }
+      }
+      d[ci] = Math.round(rSum / wSum);
+      d[ci+1] = Math.round(gSum / wSum);
+      d[ci+2] = Math.round(bSum / wSum);
+    }
+    // Yield every 30 rows to keep UI responsive
+    if (y % 30 === 0) await new Promise(r => setTimeout(r, 0));
+  }
+
+  // Optional: very light sharpen to restore some edge detail lost in denoising
+  S.editCtx.putImageData(imgData, 0, 0);
+  if (strength <= 3) {
+    const sharpData = S.editCtx.getImageData(0, 0, w, h);
+    sharpen(sharpData, 0.15);
+    S.editCtx.putImageData(sharpData, 0, 0);
+  }
+
+  pushHistory('Denoise');
+  updateEditPreview();
+  toast('Denoising complete!', 'success');
+  S.processing = false;
+}
+
+async function clearModelCache() {
+  try {
+    const db = await openModelDB();
+    const tx = db.transaction('models', 'readwrite');
+    tx.objectStore('models').clear();
+    await new Promise(r => { tx.oncomplete = r; });
+    toast('Model cache cleared', 'success');
+  } catch (e) {
+    toast('Failed to clear cache: ' + e.message, 'error');
+  }
+}
+
+/* ===== Download ===== */
+function download() {
+  if (!S.outputBlob) return;
+  const ext = ({ 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/avif': 'avif', 'image/bmp': 'bmp', 'image/gif': 'gif', 'image/tiff': 'tiff', 'image/x-icon': 'ico', 'image/svg+xml': 'svg' })[S.outputBlob.type] || 'png';
+  const baseName = S.file ? S.file.name.replace(/\.[^.]+$/, '') : 'image';
+  const suffix = S.tab === 'resize' ? `_${resW.value}x${resH.value}` : S.tab === 'upscale' ? `_${S.selectedScale}x` : '';
+  const name = `${baseName}${suffix}.${ext}`;
+
+  const a = document.createElement('a');
+  a.href = S.outputUrl;
+  a.download = name;
+  a.click();
+  toast(`Saved as ${name}`, 'success');
+}
+
+/* ===== Utilities ===== */
+function canvasToBlob(canvas, type, quality) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Canvas toBlob failed')), type, quality);
+  });
+}
+
+function fmtBytes(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / 1048576).toFixed(1) + ' MB';
+}
+
+function setAIStatus(status) {
+  S.aiStatus = status;
+  aiStatusEl.className = 'ai-status ' + status;
+  const m = getActiveModel();
+  const msgs = {
+    idle: `${m.label} model will load on first use (${m.config.modelSize} download, cached after)`,
+    loading: `Downloading ${m.label} model...`,
+    ready: `${m.label} ready (${(S.selectedModel === 'swinir' ? S.swinirBackend : S.esrganBackend)?.toUpperCase() || 'WASM'} backend)`,
+    error: `${m.label} failed to load. Enhanced upscale will be used instead.`,
+  };
+  aiStatusEl.querySelector('span').textContent = msgs[status];
+}
+
+function updateUpscaleStatus() {
+  const m = getActiveModel();
+  if (m.session) {
+    setAIStatus('ready');
+  } else {
+    setAIStatus('idle');
+  }
+  updateUpscaleInfo();
+}
+
+function toast(msg, type = 'info') {
+  const el = document.createElement('div');
+  el.className = 'toast ' + type;
+  el.textContent = msg;
+  $('#toasts').appendChild(el);
+  const duration = type === 'error' ? 8000 : 3500;
+  setTimeout(() => { el.style.opacity = '0'; el.style.transition = '.3s'; setTimeout(() => el.remove(), 300); }, duration);
+}
+
+/* ===== Service Worker (PWA offline cache) ===== */
+function registerServiceWorker() {
+  if (!('serviceWorker' in navigator) || location.protocol === 'file:') return;
+  const swCode = `
+    const CACHE = 'img-tool-v1';
+    const ASSETS = [
+      './',
+      'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/dist/ort.webgpu.min.js',
+      'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/dist/ort-wasm-simd-threaded.jsep.wasm',
+    ];
+    self.addEventListener('install', e => e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting())));
+    self.addEventListener('activate', e => e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())));
+    self.addEventListener('fetch', e => {
+      e.respondWith(caches.match(e.request).then(r => r || fetch(e.request).then(resp => {
+        if (resp.ok && e.request.url.startsWith('http')) {
+          const clone = resp.clone();
+          caches.open(CACHE).then(c => c.put(e.request, clone));
+        }
+        return resp;
+      }).catch(() => new Response('Offline', { status: 503 }))));
+    });
+  `;
+  try {
+    const blob = new Blob([swCode], { type: 'application/javascript' });
+    navigator.serviceWorker.register(URL.createObjectURL(blob), { scope: './' }).catch(() => {});
+  } catch (e) { /* Service worker registration failed — no-op */ }
+}
+registerServiceWorker();
+
+/* ===== Boot ===== */
+init();
+
+</script>
+</body>
+</html>
